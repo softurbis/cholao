@@ -1,0 +1,10 @@
+{
+  "name": "cholao-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Scripts de carga de datos a Supabase (server-side, secret key).",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.0",
+    "xlsx": "^0.18.5"
+  }
+}
