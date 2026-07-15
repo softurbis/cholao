@@ -118,11 +118,15 @@ body {
 .form-inline {
   display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
 }
-.form-inline input {
+.form-inline input, .form-inline select {
   padding: 10px 12px; border: 1px solid var(--linea); border-radius: 8px; font-size: 14px;
-  font-family: inherit; flex: 1; min-width: 140px;
+  font-family: inherit; flex: 1; min-width: 140px; background: #fff;
 }
-.form-inline input:focus { outline: 2px solid var(--rojo); border-color: transparent; }
+.form-inline input:focus, .form-inline select:focus { outline: 2px solid var(--rojo); border-color: transparent; }
+.tabla select {
+  padding: 5px 8px; border: 1px solid var(--linea); border-radius: 6px; font-family: inherit;
+  font-size: 13px; background: #fff; max-width: 170px;
+}
 .form-inline button {
   padding: 10px 16px; border: 0; border-radius: 8px; background: var(--rojo); color: #fff;
   font-weight: 700; cursor: pointer; font-family: inherit;
