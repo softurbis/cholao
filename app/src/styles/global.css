@@ -218,6 +218,42 @@ body {
 .chip-dia { padding: 8px 16px; border: 1px solid var(--linea); border-radius: 999px; background: #fff; cursor: pointer; font-family: inherit; font-size: 14px; }
 .chip-dia.activo { background: var(--rojo); color: #fff; border-color: var(--rojo); }
 
+/* ---------- Pasos del proceso de caja ---------- */
+.pasos { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.paso {
+  display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px;
+  background: #f1f2f4; color: var(--gris); font-size: 13.5px; font-weight: 600;
+}
+.paso b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #d9dbdf; color: #fff; font-size: 12px; }
+.paso.activo { background: var(--rojo); color: #fff; }
+.paso.activo b { background: rgba(255,255,255,.3); }
+.paso.ok { background: #e7f7ec; color: #1a7f37; }
+.paso.ok b { background: #1a7f37; }
+
+/* Sugerencias de búsqueda rápida */
+.sugerencias { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+.sug {
+  padding: 4px 10px; border: 1px solid var(--linea); border-radius: 999px; background: #fff;
+  cursor: pointer; font-size: 12px; font-family: inherit; color: var(--tinta);
+}
+.sug:hover { background: var(--rojo); color: #fff; border-color: var(--rojo); }
+
+/* Resumen del arqueo leído del PDF */
+.arqueo-box {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;
+  margin-top: 12px; padding: 14px; background: #fafbfc; border: 1px solid var(--linea); border-radius: 10px;
+}
+.arqueo-box > div { display: grid; gap: 2px; font-size: 15px; }
+.arqueo-box small { color: var(--gris); font-size: 11.5px; }
+
+/* ---------- Impresión (PDF / captura) ---------- */
+@media print {
+  .sidebar, .menu-btn, .btn-guardar, .btn-mini, .pasos, input[type="file"] { display: none !important; }
+  .contenido { padding: 0; max-width: 100%; }
+  .seccion, .tabla, .arqueo-box { break-inside: avoid; box-shadow: none; }
+  body { background: #fff; }
+}
+
 /* ---------- Móvil ---------- */
 @media (max-width: 760px) {
   .menu-btn { display: block; }
