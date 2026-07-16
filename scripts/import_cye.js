@@ -59,12 +59,14 @@ function parseCompras(rows, fecha, sedes) {
       cantFinal = 1; precio = monto
       if (cant) nota = `cant real: ${r[2]}`
     }
+    // comprobante va en nota mientras no exista la columna (pendiente ALTER de sql/11)
+    const comp = String(r[5] || '').trim()
+    const notas = [nota, comp && comp !== '-' ? `comp: ${comp}` : null].filter(Boolean).join(' · ') || null
     compras.push({
       fecha, nombre_libre: producto, cantidad: cantFinal, unidad: String(r[4] || '').trim() || null,
       precio_unitario: precio, proveedor: String(r[1] || '').trim() || null,
-      comprobante: String(r[5] || '').trim() || null,
       destino_sede_id: sedes[sedeTxt] || null,
-      condicion_pago: 'contado', estado_pago: 'pagado', fecha_pago: fecha, nota,
+      condicion_pago: 'contado', estado_pago: 'pagado', fecha_pago: fecha, nota: notas,
     })
   }
   const cuadre = {
@@ -163,11 +165,15 @@ async function main() {
       console.log('  Muestra entrega:', JSON.stringify(entregas[0]))
       continue
     }
-    // idempotente: borra lo de este archivo y reinserta
-    await supabase.from('compras').delete().eq('origen_archivo', base)
+    // idempotente: compras por rango de fechas del archivo (tabla sin origen_archivo aún);
+    // entregas sí tienen origen_archivo
+    const fechas = compras.map(c => c.fecha).sort()
+    if (fechas.length) {
+      await supabase.from('compras').delete().gte('fecha', fechas[0]).lte('fecha', fechas[fechas.length - 1])
+    }
     await supabase.from('entregas').delete().eq('origen_archivo', base)
     for (let i = 0; i < compras.length; i += 500)
-      await supabase.from('compras').insert(compras.slice(i, i + 500).map(c => ({ ...c, origen_archivo: base }))).then(({ error }) => { if (error) throw new Error('compras: ' + error.message) })
+      await supabase.from('compras').insert(compras.slice(i, i + 500)).then(({ error }) => { if (error) throw new Error('compras: ' + error.message) })
     for (let i = 0; i < entregas.length; i += 500)
       await supabase.from('entregas').insert(entregas.slice(i, i + 500).map(e => ({ ...e, origen_archivo: base }))).then(({ error }) => { if (error) throw new Error('entregas: ' + error.message) })
     for (const q of cuadres) {

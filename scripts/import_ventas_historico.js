@@ -33,8 +33,9 @@ async function main() {
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' })
   const H = rows[0].map((h) => String(h).trim().toLowerCase())
   const col = (name) => H.findIndex((h) => h === name)
+  const colIni = (name) => H.findIndex((h) => h.startsWith(name))
   const iF = col('fecha'), iCaja = col('caja'), iCli = col('cliente'), iDoc = col('documento'),
-        iCanal = col('canal venta'), iPago = col('tipo pago'), iTot = col('total'), iEst = col('estado')
+        iCanal = col('canal venta'), iPago = col('tipo pago'), iTot = colIni('total'), iEst = col('estado')
 
   const filas = []
   const vistos = new Set()
