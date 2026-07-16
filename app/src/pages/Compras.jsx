@@ -27,6 +27,21 @@ function Ranking({ titulo, filas, max, color = 'var(--rojo)' }) {
   )
 }
 
+// Dropdown que incluye el valor actual (aunque no esté en el catálogo) y una opción para crear
+function SelectCat({ value, opciones, onChange, onCrear, placeholder }) {
+  return (
+    <select value={value || ''} onChange={async (e) => {
+      if (e.target.value === '__nuevo__') { const nv = await onCrear(); if (nv) onChange(nv) }
+      else onChange(e.target.value)
+    }}>
+      <option value="">{placeholder || '—'}</option>
+      {value && !opciones.includes(value) && <option value={value}>{value} (actual)</option>}
+      {opciones.map((o) => <option key={o} value={o}>{o}</option>)}
+      <option value="__nuevo__">➕ Crear nuevo…</option>
+    </select>
+  )
+}
+
 export default function Compras() {
   const { perfil } = useAuth()
   const esAdmin = !perfil || perfil.rol === 'superadmin' || perfil.rol === 'gerente'
@@ -46,18 +61,32 @@ export default function Compras() {
   const [vista, setVista] = useState('resumen')
   const [edit, setEdit] = useState(null)          // {tabla, id} en edición
   const [borr, setBorr] = useState({})            // borrador de edición
+  const [catProd, setCatProd] = useState([])      // catálogo de productos (compras_productos)
+  const [catProv, setCatProv] = useState([])      // catálogo de proveedores
 
   useEffect(() => {
     (async () => {
-      const [c, e, f, { data: s }] = await Promise.all([
+      const [c, e, f, { data: s }, { data: cp }, { data: cv }] = await Promise.all([
         fetchAll('compras', 'id, fecha, nombre_libre, cantidad, unidad, precio_unitario, total, proveedor, destino_sede_id, comprobante'),
         fetchAll('entregas', 'id, fecha, producto, cantidad, presentacion, sede_id, total'),
         fetchAll('fondo_compras_dia', '*'),
         supabase.from('sedes').select('id, nombre').order('nombre'),
+        supabase.from('compras_productos').select('nombre').order('nombre'),
+        supabase.from('proveedores').select('nombre').order('nombre'),
       ])
-      setCompras(c); setEntregas(e); setFondo(f); setSedes(s || []); setCargando(false)
+      setCompras(c); setEntregas(e); setFondo(f); setSedes(s || [])
+      setCatProd((cp || []).map((x) => x.nombre)); setCatProv((cv || []).map((x) => x.nombre))
+      setCargando(false)
     })()
   }, [])
+
+  async function crearEnCatalogo(tabla, setCat) {
+    const nombre = prompt(`Nombre del nuevo ${tabla === 'proveedores' ? 'proveedor' : 'producto'}:`)?.trim()
+    if (!nombre) return null
+    await supabase.from(tabla).insert({ nombre })
+    setCat((prev) => [...prev, nombre].sort((a, b) => a.localeCompare(b)))
+    return nombre
+  }
 
   const sedeN = useMemo(() => Object.fromEntries(sedes.map((s) => [s.id, s.nombre])), [sedes])
   const provs = useMemo(() => [...new Set(compras.map((x) => x.proveedor))].filter(Boolean).sort(), [compras])
@@ -163,9 +192,9 @@ export default function Compras() {
             {fil.slice(0, 300).map((x) => enEdit('compras', x.id) ? (
               <tr key={x.id} className="fila-edit">
                 <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
-                <td><input value={borr.nombre_libre} onChange={(e) => setBorr({ ...borr, nombre_libre: e.target.value })} /></td>
+                <td><SelectCat value={borr.nombre_libre} opciones={catProd} placeholder="Producto…" onChange={(v) => setBorr({ ...borr, nombre_libre: v })} onCrear={() => crearEnCatalogo('compras_productos', setCatProd)} /></td>
                 <td>{x.cantidad}</td>
-                <td><input list="lista-prov" value={borr.proveedor} onChange={(e) => setBorr({ ...borr, proveedor: e.target.value })} /></td>
+                <td><SelectCat value={borr.proveedor} opciones={catProv} placeholder="Proveedor…" onChange={(v) => setBorr({ ...borr, proveedor: v })} onCrear={() => crearEnCatalogo('proveedores', setCatProv)} /></td>
                 <td style={{ whiteSpace: 'nowrap' }}>{soles(x.total)}</td>
                 <td><select value={borr.destino_sede_id} onChange={(e) => setBorr({ ...borr, destino_sede_id: e.target.value })}><option value="">Oficina</option>{sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></td>
                 <td className="nota">{x.comprobante || '—'}</td>
@@ -199,7 +228,7 @@ export default function Compras() {
             {entF.slice(0, 300).map((x) => enEdit('entregas', x.id) ? (
               <tr key={x.id} className="fila-edit">
                 <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
-                <td><input value={borr.producto} onChange={(e) => setBorr({ ...borr, producto: e.target.value })} /></td>
+                <td><SelectCat value={borr.producto} opciones={catProd} placeholder="Producto…" onChange={(v) => setBorr({ ...borr, producto: v })} onCrear={() => crearEnCatalogo('compras_productos', setCatProd)} /></td>
                 <td>{x.cantidad ?? '—'}</td>
                 <td><select value={borr.sede_id} onChange={(e) => setBorr({ ...borr, sede_id: e.target.value })}><option value="">—</option>{sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></td>
                 <td>{Number(x.total) ? soles(x.total) : <span className="nota">s/v</span>}</td>
