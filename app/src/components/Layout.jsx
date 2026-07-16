@@ -5,7 +5,9 @@ import { canAccess, ROLES } from '../lib/roles'
 
 const NAV = [
   { key: 'dashboard', to: '/', label: 'Panel', icon: '📊' },
-  { key: 'cuadre', to: '/cuadre', label: 'Cuadre diario', icon: '🧮' },
+  { key: 'registro', to: '/registrar-caja', label: 'Registrar Caja', icon: '✍️' },
+  { key: 'cuadre', to: '/cuadre', label: 'Caja Diaria', icon: '🧮' },
+  { key: 'config', to: '/config', label: 'Configuración', icon: '⚙️' },
   { key: 'compras', to: '/compras', label: 'Compras', icon: '🛒' },
   { key: 'asistencia', to: '/asistencia', label: 'Asistencia · Planilla', icon: '🕒' },
   { key: 'ventas', to: '/ventas', label: 'Ventas', icon: '💵' },

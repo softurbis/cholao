@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic']
-const CAT_LABEL = { compras: 'Compras/insumos', planilla: 'Planilla', admin_gerencial: 'Admin/gerencial', deuda_retiro: 'Deuda/retiro', operativo: 'Operativo' }
+const CAT_LABEL = { compras: 'Compras/insumos', planilla: 'Planilla', admin_gerencial: 'Admin/gerencial', deuda_retiro: 'Deuda/retiro', operativo: 'Operativo', gastos_caja: 'Gastos de caja' }
 
 export default function Dashboard() {
   const { perfil } = useAuth()
@@ -14,14 +14,16 @@ export default function Dashboard() {
   const [cargando, setCargando] = useState(true)
   const [err, setErr] = useState('')
 
+  const [cajaG, setCajaG] = useState([])
   useEffect(() => {
     (async () => {
-      const [{ data: v, error: e1 }, { data: g, error: e2 }] = await Promise.all([
+      const [{ data: v, error: e1 }, { data: g, error: e2 }, { data: cg }] = await Promise.all([
         supabase.from('vista_ventas_mensual').select('*'),
         supabase.from('vista_gastos_mensual').select('*'),
+        supabase.from('vista_caja_gastos_mensual').select('*'),
       ])
       if (e1 || e2) setErr('Falta correr sql/08_vistas_dashboard.sql en Supabase.')
-      setVm(v || []); setGm(g || []); setCargando(false)
+      setVm(v || []); setGm(g || []); setCajaG(cg || []); setCargando(false)
     })()
   }, [])
 
@@ -30,22 +32,27 @@ export default function Dashboard() {
 
   const vAnio = useMemo(() => vm.filter((x) => (x.ym || '').startsWith(anio)), [vm, anio])
   const gAnio = useMemo(() => gm.filter((x) => (x.ym || '').startsWith(anio)), [gm, anio])
+  const cgAnio = useMemo(() => cajaG.filter((x) => (x.ym || '').startsWith(anio)), [cajaG, anio])
 
   const ing = vAnio.reduce((a, x) => a + Number(x.monto || 0), 0)
-  const egr = gAnio.reduce((a, x) => a + Number(x.monto || 0), 0)
+  const egrLedger = gAnio.reduce((a, x) => a + Number(x.monto || 0), 0)
+  const egrCaja = cgAnio.reduce((a, x) => a + Number(x.monto || 0), 0)
+  const egr = egrLedger + egrCaja
   const tickets = vAnio.reduce((a, x) => a + Number(x.tickets || 0), 0)
 
   const porMes = useMemo(() => {
     const m = {}
     for (const x of vAnio) (m[x.ym] ??= { ing: 0, egr: 0 }).ing += Number(x.monto || 0)
     for (const x of gAnio) (m[x.ym] ??= { ing: 0, egr: 0 }).egr += Number(x.monto || 0)
+    for (const x of cgAnio) (m[x.ym] ??= { ing: 0, egr: 0 }).egr += Number(x.monto || 0)
     return Object.entries(m).sort().map(([ym, val]) => ({ ym, ...val, neto: val.ing - val.egr }))
-  }, [vAnio, gAnio])
+  }, [vAnio, gAnio, cgAnio])
 
   const porCat = useMemo(() => {
     const m = {}; for (const x of gAnio) m[x.categoria] = (m[x.categoria] || 0) + Number(x.monto || 0)
+    if (egrCaja) m['gastos_caja'] = egrCaja
     return Object.entries(m).sort((a, b) => b[1] - a[1])
-  }, [gAnio])
+  }, [gAnio, egrCaja])
 
   const maxBar = Math.max(1, ...porMes.map((r) => Math.max(r.ing, r.egr)))
   const ventasIncompletas = anio === '2026' && porMes.filter((r) => r.ing > 0).length < 6

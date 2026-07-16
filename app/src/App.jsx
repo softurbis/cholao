@@ -4,6 +4,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import RegistrarCaja from './pages/RegistrarCaja'
+import Config from './pages/Config'
 import Cuadre from './pages/Cuadre'
 import Compras from './pages/Compras'
 import Asistencia from './pages/Asistencia'
@@ -27,6 +29,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Privado><Dashboard /></Privado>} />
+        <Route path="/registrar-caja" element={<Privado module="registro"><RegistrarCaja /></Privado>} />
+        <Route path="/config" element={<Privado module="config"><Config /></Privado>} />
         <Route path="/cuadre" element={<Privado module="cuadre"><Cuadre /></Privado>} />
         <Route path="/compras" element={<Privado module="compras"><Compras /></Privado>} />
         <Route path="/asistencia" element={<Privado module="asistencia"><Asistencia /></Privado>} />

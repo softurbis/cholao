@@ -10,12 +10,12 @@ export const ROLES = {
 
 // Qué rutas puede ver cada rol (base editable a medida que crezca el sistema).
 export const ROLE_ACCESS = {
-  superadmin: ['dashboard', 'cuadre', 'compras', 'asistencia', 'ventas', 'productos', 'gastos', 'sedes', 'personas'],
-  gerente:    ['dashboard', 'cuadre', 'compras', 'asistencia', 'ventas', 'productos', 'gastos'],
-  encargado:  ['dashboard', 'cuadre', 'compras', 'asistencia'],
+  superadmin: ['dashboard', 'registro', 'cuadre', 'compras', 'asistencia', 'ventas', 'productos', 'gastos', 'config', 'sedes', 'personas'],
+  gerente:    ['dashboard', 'registro', 'cuadre', 'compras', 'asistencia', 'ventas', 'productos', 'gastos', 'config'],
+  encargado:  ['dashboard', 'registro', 'cuadre', 'compras', 'asistencia'],
   compras:    ['dashboard', 'compras'],
   almacen:    ['compras'],
-  cajera:     ['compras', 'asistencia'],
+  cajera:     ['registro', 'compras', 'asistencia'],
 }
 
 export function canAccess(rol, key) {

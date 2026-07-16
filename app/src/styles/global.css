@@ -199,6 +199,25 @@ body {
   font-size: 13px; width: 100%; max-width: 190px; background: #fff;
 }
 
+/* ---------- Formulario de registro ---------- */
+.aviso-ok { background: #e7f7ec; border: 1px solid #a9e0bd; color: #1a7f37; padding: 10px 12px; border-radius: 10px; margin-bottom: 14px; font-size: 14px; }
+.seccion { background: var(--blanco); border: 1px solid var(--linea); border-radius: 12px; padding: 16px 18px; box-shadow: var(--sombra); }
+.grid-pagos { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.grid-pagos label, .fila-mini { display: grid; gap: 3px; }
+.grid-pagos label > span { font-size: 11.5px; color: var(--gris); text-transform: uppercase; letter-spacing: .03em; }
+.grid-pagos input { padding: 9px 11px; border: 1px solid var(--linea); border-radius: 8px; font-family: inherit; font-size: 15px; }
+.grid-pagos input:focus { outline: 2px solid var(--rojo); border-color: transparent; }
+.totales { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--linea); font-size: 14px; }
+.def-neg { color: var(--rojo); } .def-pos { color: #1a7f37; }
+.fila-mini { display: flex; gap: 6px; margin-bottom: 6px; }
+.fila-mini input, .fila-mini select { padding: 7px 9px; border: 1px solid var(--linea); border-radius: 7px; font-family: inherit; font-size: 13.5px; flex: 1; }
+.in-num { padding: 6px 8px; border: 1px solid var(--linea); border-radius: 6px; font-family: inherit; font-size: 14px; width: 80px; text-align: right; }
+.btn-guardar { padding: 12px 28px; border: 0; border-radius: 10px; background: var(--rojo); color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit; }
+.btn-guardar:hover:not(:disabled) { background: var(--rojo-osc); }
+.btn-guardar:disabled { opacity: .6; }
+.chip-dia { padding: 8px 16px; border: 1px solid var(--linea); border-radius: 999px; background: #fff; cursor: pointer; font-family: inherit; font-size: 14px; }
+.chip-dia.activo { background: var(--rojo); color: #fff; border-color: var(--rojo); }
+
 /* ---------- Móvil ---------- */
 @media (max-width: 760px) {
   .menu-btn { display: block; }
