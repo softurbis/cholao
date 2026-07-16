@@ -56,6 +56,13 @@ export default function Login() {
             {cargando ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
+
+        <button
+          className="btn-preview"
+          onClick={() => { sessionStorage.setItem('preview', '1'); navigate('/') }}
+        >
+          👁 Ver en modo vista previa (sin login)
+        </button>
       </div>
     </div>
   )

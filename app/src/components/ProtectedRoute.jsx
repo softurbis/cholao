@@ -5,8 +5,10 @@ import { canAccess } from '../lib/roles'
 export default function ProtectedRoute({ children, module }) {
   const { session, perfil, loading } = useAuth()
 
+  const preview = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('preview') === '1'
+
   if (loading) return <div className="centro-cargando">Cargando…</div>
-  if (!session) return <Navigate to="/login" replace />
+  if (!session && !preview) return <Navigate to="/login" replace />
 
   // module opcional: si se pasa, valida acceso por rol.
   if (module && perfil && !canAccess(perfil.rol, module)) {
