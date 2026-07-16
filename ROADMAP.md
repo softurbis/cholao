@@ -1,51 +1,76 @@
-# Sistema Cholao — Checklist maestro
+# Sistema Cholao — Hoja de ruta
 
-Estado a la fecha. ✅ hecho · 🔨 en curso · ⬜ pendiente
+Estado al cierre de sesión (jul 2026). ✅ hecho · 🔨 parcial · ⬜ pendiente
 
-## Base ya lista
-- ✅ Base de datos completa (v1–v9): sedes, personas, ventas, gastos, compras/stock, flujo, deudas, obligaciones, caja diaria por turno
-- ✅ Código en GitHub (`softurbis/cholao`) · llaves seguras (`.env` fuera del repo)
-- ✅ Marca aplicada (rojo/azul/amarillo, Trebuchet)
-
-## Datos cargados
-- ✅ Ventas 2025 (27,172 tickets Amazonas) + julio 2026 (1,049)
-- ✅ Ventas por producto — julio 2026 (215)
-- ✅ Personas (18) · Catálogo compras categorizado (151)
-- ✅ Gastos 2026 (574 movimientos, S/200,441.93)
-- ✅ Obligaciones fijas sembradas (7, para editar)
-- ✅ Caja diaria abr–jul 2026 (228 turnos: cuadre + gastos + descuentos + stock)
+App en vivo: **https://softurbis.github.io/cholao/** (requiere login · datos protegidos con RLS)
+Login superadmin: `ing.cesarohiggins@gmail.com`
+Repo: `softurbis/cholao` · Redeploy: `bash deploy.sh` + `git push`
 
 ---
 
-## FASE 1 — Ver lo que ya está cargado
-1. ✅ **Panel Caja Diaria** — ver cuadres por turno (venta, pagos, gastos, descuentos, stock)
-2. ✅ **Dashboard de productos** — más vendidos, venta por sede, monto por producto/sede
-3. ⬜ **Comparativo de ventas** — venta contada vs venta sistema (cajero) vs venta real (POS)
+## ✅ LO QUE YA ESTÁ (no tocar salvo mejora)
 
-## FASE 2 — Completar cargas de datos
-4. ✅ **Caja diaria formato viejo** — 2025 + ene–mar 2026 (811 turnos, may-2025→jul-2026)
-5. ✅ **Ventas ene–may 2026** — 9,514 tickets (falta solo junio; export llegaba hasta 17-may)
-6. ✅ **Ventas por producto por mes** — Amazonas mar24→abr26 + Miraflores jun-dic25 + jul26 (semanal en adelante)
-6b. ✅ **Compras de Juan 2026** — 7,187 compras S/81.5k + 4,166 entregas + 210 cuadres de fondo (ene→jul)
+### Infraestructura
+- Base de datos completa: **13 migraciones SQL corridas** (01→13)
+- **Seguridad RLS activa** (solo usuarios logueados ven datos)
+- App desplegada, login funcionando, marca oficial aplicada
 
-## FASE 3 — Paneles operativos (captura)
-7. 🔨 **Compras** — ✅ panel con rankings (proveedores/productos), detalle, entregas y fondo Juan; ⬜ falta formulario de registro diario + crédito/stock valorizado
-8. ⬜ **Compras móvil** — listas rápidas por sede (las señoras desde el celu)
-9. ⬜ **Obligaciones** — fijos/variables con calendario de vencimientos
-10. ⬜ **Planilla** — sueldos + descuentos que vienen de la caja diaria
-11. ⬜ **Asistencia + Horarios** — personal en tienda en tiempo real por hora
-12. ⬜ **Personas** — alta/edición de empleados y usuarios
-13. ⬜ **Importación** — subir los exportados del POS desde la app (sin scripts)
+### Datos cargados
+- **Ventas: 40,856 tickets** — 2025 completo + 2026 (ene→15 jul). *(Amazonas)*
+- **Gastos gerencia: 574** (S/200,441) — con sede auto-asignada donde aplica
+- **Compras de Juan: 7,187** (S/81,560) + **4,166 entregas** + **210 cuadres de fondo** (2026)
+- **Caja diaria: 811 turnos** (may-2025 → jul-2026): cuadre, gastos, descuentos, stock
+- **Productos por mes**: Amazonas mar24→abr26, Miraflores jun→dic25
+- **Personas: 18** · **Catálogo compras: 151** · **Proveedores**: sembrados
 
-## FASE 4 — Integración y cierre
-14. ⬜ **Descuentos caja → planilla** (enlace automático)
-15. ⬜ **Ajustar flujo** — egresos del ledger, sin doble conteo
-16. ⬜ **Login / usuarios + roles** — crear superadmin y accesos
-17. ⬜ **Seguridad (RLS)** — políticas por rol/sede
-18. ⬜ **Rotar secret key** de Supabase (al terminar la carga)
+### Módulos funcionando
+- **Panel/Flujo** (ingresos − gastos − gastos de caja, por año/mes)
+- **Registrar Caja** (formulario tipo Excel: cuadre + gastos + descuentos + stock)
+- **Caja Diaria** (ver turnos + gastos de caja vs adelantos separados)
+- **Compras** (rankings proveedor/producto, detalle, entregas, fondo Juan, edición con dropdowns)
+- **Productos** (ranking con filtro sede + rango de meses)
+- **Gastos** · **Sedes** · **Configuración** (productos stock, metas, días inventario)
 
 ---
 
-**Orden de trabajo:** Fase 1 → 2 → 3 → 4. Primero que VEAS lo que ya está cargado
-(panel de caja, productos), luego completar datos viejos, luego los paneles de captura
-diaria, y al final integración, login y seguridad.
+## ⬜ PENDIENTES
+
+### A · Datos por completar
+1. ⬜ **Ventas de Miraflores** (ticket a ticket) — solo Amazonas está cargado; falta el export del POS de Miraflores
+2. ⬜ **Productos**: Miraflores ene-2026+ · Amazonas may-jun 2026
+3. ⬜ **Compras de Juan 2025** — solo 2026 cargado (la carpeta 2025 tiene snapshots por consolidar)
+4. ⬜ **Julio 2025 caja** (archivo con layout distinto, salió 0 turnos)
+5. ⬜ **May–jun 2025 caja** (turnos sin venta, layout muy temprano)
+6. ⬜ **Uploads semanales** en adelante (ventas + ventas por producto)
+7. 🔵 *Opcional:* CUENTAS 2020-2024 (flujo histórico, solo referencia)
+
+### B · Módulos/pantallas por construir
+8. ⬜ **Planilla** — sueldos + descuentos que vienen de la caja → sueldo neto por persona/mes
+9. ⬜ **Asistencia + Horarios en tiempo real** — ver personal en tienda por hora según turnos
+10. ⬜ **Personas** — alta/edición de empleados y **crear los logins del personal** (roles)
+11. ⬜ **Obligaciones** — panel editable (fijos/variables) + calendario de vencimientos
+12. ⬜ **Comparativo de ventas** — venta contada vs venta sistema (cajero) vs venta real (POS)
+13. ⬜ **Control de inventario** — registrar el conteo físico en los días configurados
+14. ⬜ **Registro de Compras** — formulario para que Juan cargue compras/entregas desde el sistema
+15. ⬜ **Corregir en masa** productos/proveedores mal escritos + administrador de catálogos
+
+### C · Calidad y cierre
+16. ⬜ **Reconciliar doble conteo**: los gastos-gerencia categoría "compras" (~S/75k) probablemente
+    se solapan con las compras de Juan (~S/81k). Decidir cuál cuenta en el flujo para no duplicar.
+17. ⬜ **Normalizar productos** mal escritos (para que agrupen bien en rankings)
+18. ⬜ **Rotar la secret key** de Supabase (se compartió en chat durante la carga)
+
+---
+
+## 🔧 Cómo continuar (operación)
+- **Redeploy web:** `bash deploy.sh` y luego `git push`
+- **Cargar más ventas (POS):** `node scripts/import_ventas_historico.js "<archivo.xlsx>" <Sede>`
+- **Cargar caja nueva:** `node scripts/import_caja_diaria.js <carpeta>` (formato nuevo) o `import_caja_viejo.js` (.xlsm)
+- **Cargar compras Juan:** `node scripts/import_cye.js "<Reporte CyE ...>"`
+- **Cargar productos x mes:** `node scripts/import_productos_mes.js "<carpeta>" <Sede>`
+
+## Prioridad sugerida para la próxima sesión
+1. Reconciliar el doble conteo (#16) → que el flujo sea 100% real
+2. Ventas de Miraflores (#1) → dividir bien las dos sedes
+3. Planilla (#8) — conecta con los descuentos de caja ya cargados
+4. Personas + logins del personal (#10) → que cada quien entre con su usuario
