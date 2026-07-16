@@ -1,24 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchAll } from '../lib/fetchAll'
 
 const soles = (n) => n == null ? '—' : 'S/ ' + Number(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export default function Cuadre() {
   const [turnos, setTurnos] = useState([])
   const [sedes, setSedes] = useState([])
+  const [gastosCaja, setGastosCaja] = useState([])   // gastos de tienda (con fecha/sede del turno)
+  const [descCaja, setDescCaja] = useState([])       // adelantos/descuentos al personal
   const [fSede, setFSede] = useState('')
   const [fMes, setFMes] = useState('')
   const [cargando, setCargando] = useState(true)
+  const [verRankings, setVerRankings] = useState(false)
   const [abierto, setAbierto] = useState(null)   // turno_id expandido
   const [detalle, setDetalle] = useState({})     // { turno_id: {gastos, descuentos, stock} }
 
   useEffect(() => {
     (async () => {
-      const [{ data: t }, { data: s }] = await Promise.all([
+      const [{ data: t }, { data: s }, g, d] = await Promise.all([
         supabase.from('caja_turno').select('*, sede:sedes(nombre)').order('fecha', { ascending: false }).limit(2000),
         supabase.from('sedes').select('id, nombre').order('nombre'),
+        fetchAll('caja_gastos', 'descripcion, monto, detalle, turno:caja_turno(fecha, sede_id)', 'id'),
+        fetchAll('caja_descuentos', 'persona, monto, tipo, turno:caja_turno(fecha, sede_id)', 'id'),
       ])
-      setTurnos(t || []); setSedes(s || []); setCargando(false)
+      setTurnos(t || []); setSedes(s || []); setGastosCaja(g); setDescCaja(d); setCargando(false)
     })()
   }, [])
 
@@ -31,6 +37,23 @@ export default function Cuadre() {
     gastos: a.gastos + Number(x.gastos_tienda || 0),
     def: a.def + Number(x.deficit_sobra || 0),
   }), { venta: 0, gastos: 0, def: 0 }), [filtrados])
+
+  // Gastos de caja (tienda) y adelantos, con los mismos filtros de sede/mes
+  const pasaFiltro = (x) => x.turno
+    && (!fSede || x.turno.sede_id === fSede)
+    && (!fMes || (x.turno.fecha || '').startsWith(fMes))
+  const gastosF = useMemo(() => gastosCaja.filter(pasaFiltro), [gastosCaja, fSede, fMes])
+  const descF = useMemo(() => descCaja.filter(pasaFiltro), [descCaja, fSede, fMes])
+  const totGastosCaja = gastosF.reduce((a, x) => a + Number(x.monto || 0), 0)
+  const totDesc = descF.reduce((a, x) => a + Number(x.monto || 0), 0)
+  const rankGastos = useMemo(() => {
+    const m = {}; for (const x of gastosF) { const k = (x.descripcion || '—').toUpperCase().trim(); m[k] = (m[k] || 0) + Number(x.monto || 0) }
+    return Object.entries(m).sort((a, b) => b[1] - a[1])
+  }, [gastosF])
+  const rankDesc = useMemo(() => {
+    const m = {}; for (const x of descF) { const k = (x.persona || '—').toUpperCase().trim(); m[k] = (m[k] || 0) + Number(x.monto || 0) }
+    return Object.entries(m).sort((a, b) => b[1] - a[1])
+  }, [descF])
 
   async function toggle(t) {
     if (abierto === t.id) { setAbierto(null); return }
@@ -52,7 +75,8 @@ export default function Cuadre() {
 
       <div className="tarjetas" style={{ marginBottom: 16 }}>
         <div className="tarjeta"><span className="t-label">Venta contada</span><span className="t-valor">{soles(tot.venta)}</span></div>
-        <div className="tarjeta"><span className="t-label">Gastos tienda</span><span className="t-valor" style={{ fontSize: 20 }}>{soles(tot.gastos)}</span></div>
+        <div className="tarjeta"><span className="t-label">💸 Gastos de caja (tienda)</span><span className="t-valor" style={{ fontSize: 20 }}>{soles(totGastosCaja)}</span></div>
+        <div className="tarjeta"><span className="t-label">👥 Adelantos/desc. personal</span><span className="t-valor" style={{ fontSize: 20 }}>{soles(totDesc)}</span></div>
         <div className="tarjeta"><span className="t-label">Déficit/Sobra neto</span><span className="t-valor" style={{ fontSize: 20, color: tot.def < 0 ? 'var(--rojo)' : '#1a7f37' }}>{soles(tot.def)}</span></div>
         <div className="tarjeta"><span className="t-label">Turnos</span><span className="t-valor">{filtrados.length}</span></div>
       </div>
@@ -66,7 +90,34 @@ export default function Cuadre() {
           <option value="">Todos los meses</option>
           {meses.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
+        <button className="btn-mini" style={verRankings ? { background: 'var(--rojo)', color: '#fff', borderColor: 'var(--rojo)' } : {}}
+          onClick={() => setVerRankings(!verRankings)}>📊 Ver rankings</button>
       </div>
+
+      {verRankings && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>💸 Gastos de caja por concepto</h2>
+            <table className="tabla"><tbody>
+              {rankGastos.slice(0, 15).map(([n, v], i) => (
+                <tr key={n}><td style={{ width: 22, color: '#999' }}>{i + 1}</td><td>{n}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{soles(v)}</td>
+                  <td style={{ width: '28%' }}><div style={{ height: 7, background: 'var(--rojo)', borderRadius: 3, width: `${(v / (rankGastos[0]?.[1] || 1)) * 100}%`, minWidth: 2 }} /></td></tr>
+              ))}
+            </tbody></table>
+          </div>
+          <div>
+            <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>👥 Adelantos/descuentos por persona</h2>
+            <table className="tabla"><tbody>
+              {rankDesc.slice(0, 15).map(([n, v], i) => (
+                <tr key={n}><td style={{ width: 22, color: '#999' }}>{i + 1}</td><td>{n}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{soles(v)}</td>
+                  <td style={{ width: '28%' }}><div style={{ height: 7, background: 'var(--azul)', borderRadius: 3, width: `${(v / (rankDesc[0]?.[1] || 1)) * 100}%`, minWidth: 2 }} /></td></tr>
+              ))}
+            </tbody></table>
+          </div>
+        </div>
+      )}
 
       {cargando ? <p className="nota">Cargando…</p> : (
         <table className="tabla">
