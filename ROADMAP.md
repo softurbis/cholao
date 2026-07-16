@@ -25,7 +25,8 @@ Estado a la fecha. ✅ hecho · 🔨 en curso · ⬜ pendiente
 ## FASE 2 — Completar cargas de datos
 4. ✅ **Caja diaria formato viejo** — 2025 + ene–mar 2026 (811 turnos, may-2025→jul-2026)
 5. ✅ **Ventas ene–may 2026** — 9,514 tickets (falta solo junio; export llegaba hasta 17-may)
-6. ⬜ **Ventas por producto** — subidas semanales (para el dashboard de productos)
+6. ✅ **Ventas por producto por mes** — Amazonas mar24→abr26 + Miraflores jun-dic25 + jul26 (semanal en adelante)
+6b. ✅ **Compras de Juan 2026** — 7,187 compras S/81.5k + 4,166 entregas + 210 cuadres de fondo (ene→jul)
 
 ## FASE 3 — Paneles operativos (captura)
 7. ⬜ **Compras** — registro con precio real, contado/crédito, stock valorizado, cuentas por pagar

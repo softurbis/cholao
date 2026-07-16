@@ -59,14 +59,13 @@ function parseCompras(rows, fecha, sedes) {
       cantFinal = 1; precio = monto
       if (cant) nota = `cant real: ${r[2]}`
     }
-    // comprobante va en nota mientras no exista la columna (pendiente ALTER de sql/11)
     const comp = String(r[5] || '').trim()
-    const notas = [nota, comp && comp !== '-' ? `comp: ${comp}` : null].filter(Boolean).join(' · ') || null
     compras.push({
       fecha, nombre_libre: producto, cantidad: cantFinal, unidad: String(r[4] || '').trim() || null,
       precio_unitario: precio, proveedor: String(r[1] || '').trim() || null,
+      comprobante: comp && comp !== '-' ? comp : null,
       destino_sede_id: sedes[sedeTxt] || null,
-      condicion_pago: 'contado', estado_pago: 'pagado', fecha_pago: fecha, nota: notas,
+      condicion_pago: 'contado', estado_pago: 'pagado', fecha_pago: fecha, nota,
     })
   }
   const cuadre = {
@@ -153,34 +152,42 @@ async function main() {
   for (const k in sedesRaw) sedes[clean(k)] = sedesRaw[k]
 
   const archivos = paths.flatMap(listar)
+  // Los archivos se solapan en fechas (un mes trae días del vecino).
+  // Se consolida POR DÍA: el archivo procesado después (más reciente) gana ese día completo.
+  const porDia = {}   // fecha -> { compras, entregas, cuadre, origen }
   for (const file of archivos) {
     const base = file.split(/[\\/]/).pop()
     const { compras, cuadres, entregas } = parseArchivo(file, sedes)
     const totC = compras.reduce((a, c) => a + c.cantidad * c.precio_unitario, 0)
     const totE = entregas.reduce((a, e) => a + Number(e.total || 0), 0)
     console.log(`${base}: ${cuadres.length} días · ${compras.length} compras S/${totC.toFixed(2)} · ${entregas.length} entregas S/${totE.toFixed(2)}`)
-    if (DRY) {
-      console.log('  Muestra compra:', JSON.stringify(compras[0]))
-      console.log('  Muestra cuadre:', JSON.stringify(cuadres[0]))
-      console.log('  Muestra entrega:', JSON.stringify(entregas[0]))
-      continue
-    }
-    // idempotente: compras por rango de fechas del archivo (tabla sin origen_archivo aún);
-    // entregas sí tienen origen_archivo
-    const fechas = compras.map(c => c.fecha).sort()
-    if (fechas.length) {
-      await supabase.from('compras').delete().gte('fecha', fechas[0]).lte('fecha', fechas[fechas.length - 1])
-    }
-    await supabase.from('entregas').delete().eq('origen_archivo', base)
-    for (let i = 0; i < compras.length; i += 500)
-      await supabase.from('compras').insert(compras.slice(i, i + 500)).then(({ error }) => { if (error) throw new Error('compras: ' + error.message) })
-    for (let i = 0; i < entregas.length; i += 500)
-      await supabase.from('entregas').insert(entregas.slice(i, i + 500).map(e => ({ ...e, origen_archivo: base }))).then(({ error }) => { if (error) throw new Error('entregas: ' + error.message) })
-    for (const q of cuadres) {
-      const { error } = await supabase.from('fondo_compras_dia').upsert({ ...q, origen_archivo: base }, { onConflict: 'fecha' })
-      if (error) throw new Error('fondo: ' + error.message)
-    }
+    if (DRY) continue
+    const dias = new Set([...compras.map(c => c.fecha), ...entregas.map(e => e.fecha), ...cuadres.map(q => q.fecha)])
+    for (const d of dias) porDia[d] = { compras: [], entregas: [], cuadre: null, origen: base }
+    for (const c of compras) porDia[c.fecha].compras.push(c)
+    for (const e of entregas) porDia[e.fecha].entregas.push(e)
+    for (const q of cuadres) porDia[q.fecha].cuadre = q
   }
-  if (!DRY) console.log('✓ Listo')
+  if (DRY) return
+
+  const fechas = Object.keys(porDia).sort()
+  console.log(`\nConsolidado: ${fechas.length} días (${fechas[0]} → ${fechas[fechas.length - 1]})`)
+  const allC = fechas.flatMap(d => porDia[d].compras)
+  const allE = fechas.flatMap(d => porDia[d].entregas.map(e => ({ ...e, origen_archivo: porDia[d].origen })))
+  const allQ = fechas.map(d => porDia[d].cuadre).filter(Boolean).map(q => ({ ...q, origen_archivo: porDia[q.fecha].origen }))
+
+  await supabase.from('compras').delete().gte('fecha', fechas[0]).lte('fecha', fechas[fechas.length - 1])
+  await supabase.from('entregas').delete().gte('fecha', fechas[0]).lte('fecha', fechas[fechas.length - 1])
+  for (let i = 0; i < allC.length; i += 500)
+    await supabase.from('compras').insert(allC.slice(i, i + 500)).then(({ error }) => { if (error) throw new Error('compras: ' + error.message) })
+  for (let i = 0; i < allE.length; i += 500)
+    await supabase.from('entregas').insert(allE.slice(i, i + 500)).then(({ error }) => { if (error) throw new Error('entregas: ' + error.message) })
+  for (const q of allQ) {
+    const { error } = await supabase.from('fondo_compras_dia').upsert(q, { onConflict: 'fecha' })
+    if (error) throw new Error('fondo: ' + error.message)
+  }
+  const totC = allC.reduce((a, c) => a + c.cantidad * c.precio_unitario, 0)
+  const totE = allE.reduce((a, e) => a + Number(e.total || 0), 0)
+  console.log(`✓ Cargado: ${allC.length} compras S/${totC.toFixed(2)} · ${allE.length} entregas S/${totE.toFixed(2)} · ${allQ.length} cuadres de fondo`)
 }
 main().catch(e => { console.error(e); process.exit(1) })
