@@ -16,6 +16,7 @@ export default function Cuadre() {
   const [fMes, setFMes] = useState('')
   const [cargando, setCargando] = useState(true)
   const [verRankings, setVerRankings] = useState(false)
+  const [soloPend, setSoloPend] = useState(false)
   const [abierto, setAbierto] = useState(null)   // turno_id expandido
   const [detalle, setDetalle] = useState({})     // { turno_id: {gastos, descuentos, stock} }
 
@@ -33,7 +34,9 @@ export default function Cuadre() {
 
   const meses = useMemo(() => [...new Set(turnos.map((x) => (x.fecha || '').slice(0, 7)))].filter(Boolean).sort().reverse(), [turnos])
   const filtrados = useMemo(() => turnos.filter((x) =>
-    (!fSede || x.sede_id === fSede) && (!fMes || (x.fecha || '').startsWith(fMes))), [turnos, fSede, fMes])
+    (!fSede || x.sede_id === fSede) && (!fMes || (x.fecha || '').startsWith(fMes))
+    && (!soloPend || (!x.validado && x.origen_archivo === 'registro-app'))), [turnos, fSede, fMes, soloPend])
+  const porValidar = useMemo(() => turnos.filter((x) => !x.validado && x.origen_archivo === 'registro-app').length, [turnos])
 
   const tot = useMemo(() => filtrados.reduce((a, x) => ({
     venta: a.venta + Number(x.venta_total || 0),
@@ -73,13 +76,39 @@ export default function Cuadre() {
     if (abierto === t.id) { setAbierto(null); return }
     setAbierto(t.id)
     if (!detalle[t.id]) {
-      const [{ data: g }, { data: d }, { data: st }] = await Promise.all([
+      const [{ data: g }, { data: d }, { data: st }, { data: adj }] = await Promise.all([
         supabase.from('caja_gastos').select('*').eq('turno_id', t.id),
         supabase.from('caja_descuentos').select('*').eq('turno_id', t.id),
         supabase.from('caja_stock').select('*').eq('turno_id', t.id),
+        supabase.from('caja_adjuntos').select('*').eq('turno_id', t.id),
       ])
-      setDetalle((prev) => ({ ...prev, [t.id]: { gastos: g || [], descuentos: d || [], stock: st || [] } }))
+      // links temporales para poder abrir los archivos (el bucket es privado)
+      const archivos = []
+      for (const a of adj || []) {
+        const { data: s } = await supabase.storage.from('arqueos').createSignedUrl(a.archivo, 3600)
+        archivos.push({ ...a, url: s?.signedUrl })
+      }
+      setDetalle((prev) => ({ ...prev, [t.id]: { gastos: g || [], descuentos: d || [], stock: st || [], archivos } }))
     }
+  }
+
+  // El admin revisa los comprobantes y da el OK
+  async function validar(t, e) {
+    e.stopPropagation()
+    const nota = prompt(`Dar OK al turno del ${t.fecha} (${t.turno}) de ${t.sede?.nombre}.\n\nObservación (opcional):`)
+    if (nota === null) return
+    const { error } = await supabase.from('caja_turno').update({
+      validado: true, validado_por: perfil?.id || null,
+      validado_en: new Date().toISOString(), nota_validacion: nota || null,
+    }).eq('id', t.id)
+    if (error) { alert('Error: ' + error.message); return }
+    setTurnos((p) => p.map((x) => x.id === t.id ? { ...x, validado: true, validado_en: new Date().toISOString() } : x))
+  }
+  async function quitarValidacion(t, e) {
+    e.stopPropagation()
+    if (!confirm('¿Quitar el OK de este turno?')) return
+    await supabase.from('caja_turno').update({ validado: false, validado_por: null, validado_en: null }).eq('id', t.id)
+    setTurnos((p) => p.map((x) => x.id === t.id ? { ...x, validado: false, validado_en: null } : x))
   }
 
   return (
@@ -106,6 +135,10 @@ export default function Cuadre() {
         </select>
         <button className="btn-mini" style={verRankings ? { background: 'var(--rojo)', color: '#fff', borderColor: 'var(--rojo)' } : {}}
           onClick={() => setVerRankings(!verRankings)}>📊 Ver rankings</button>
+        {esAdmin && porValidar > 0 && (
+          <button className="btn-mini" style={soloPend ? { background: '#e0a800', color: '#fff', borderColor: '#e0a800' } : { borderColor: '#e0a800', color: '#8a6d00' }}
+            onClick={() => setSoloPend(!soloPend)}>⏳ Por validar ({porValidar})</button>
+        )}
       </div>
 
       {verRankings && (
@@ -135,11 +168,13 @@ export default function Cuadre() {
 
       {cargando ? <p className="nota">Cargando…</p> : (
         <table className="tabla">
-          <thead><tr><th>Fecha</th><th>Turno</th><th>Sede</th><th>Cajero</th><th>Venta</th><th>Sistema</th><th>Déf/Sobra</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Turno</th><th>Sede</th><th>Cajero</th><th>Venta</th><th>Sistema</th><th>Déf/Sobra</th><th>Estado</th><th></th></tr></thead>
           <tbody>
             {filtrados.map((t) => (
               <FragmentRow key={t.id} t={t} abierto={abierto === t.id} onToggle={() => toggle(t)} det={detalle[t.id]}
-                onEliminar={esAdmin ? (e) => eliminarTurno(t, e) : null} />
+                onEliminar={esAdmin ? (e) => eliminarTurno(t, e) : null}
+                onValidar={esAdmin ? (e) => validar(t, e) : null}
+                onQuitarOk={esAdmin ? (e) => quitarValidacion(t, e) : null} />
             ))}
             {filtrados.length === 0 && <tr><td colSpan="8" className="nota">Sin turnos para el filtro.</td></tr>}
           </tbody>
@@ -149,7 +184,8 @@ export default function Cuadre() {
   )
 }
 
-function FragmentRow({ t, abierto, onToggle, det, onEliminar }) {
+function FragmentRow({ t, abierto, onToggle, det, onEliminar, onValidar, onQuitarOk }) {
+  const registrado = t.origen_archivo === 'registro-app'   // los del sistema son los que se validan
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer' }}>
@@ -160,8 +196,16 @@ function FragmentRow({ t, abierto, onToggle, det, onEliminar }) {
         <td>{soles(t.venta_total)}</td>
         <td>{soles(t.venta_sistema)}</td>
         <td style={{ color: Number(t.deficit_sobra) < 0 ? 'var(--rojo)' : '#1a7f37' }}>{soles(t.deficit_sobra)}</td>
+        <td>
+          {t.validado
+            ? <span className="chip chip-ok" title={t.validado_en ? 'Validado ' + new Date(t.validado_en).toLocaleString('es-PE') : ''}>✓ OK</span>
+            : registrado ? <span className="chip chip-pend">⏳ por validar</span> : <span className="nota">—</span>}
+          {t.montos_editados && <span className="chip chip-alerta" title="Se editaron montos del PDF">⚠️</span>}
+        </td>
         <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {abierto ? '▲' : '▼'}
+          {onValidar && !t.validado && registrado && <button className="btn-mini btn-ok" title="Dar OK" onClick={onValidar}>✓ OK</button>}
+          {onQuitarOk && t.validado && registrado && <button className="btn-mini" title="Quitar OK" onClick={onQuitarOk}>↺</button>}
           {onEliminar && <button className="btn-mini btn-peligro" title="Eliminar turno" onClick={onEliminar}>🗑️</button>}
         </td>
       </tr>
@@ -179,13 +223,39 @@ function FragmentRow({ t, abierto, onToggle, det, onEliminar }) {
               {t.rendimiento && <span>· {t.rendimiento}</span>}
               {t.clima && <span>· {t.clima}</span>}
             </div>
-            {!det ? <span className="nota">Cargando detalle…</span> : (
+            {!det ? <span className="nota">Cargando detalle…</span> : (<>
+              {/* Comprobantes para la revisión del admin */}
+              {det.archivos?.length > 0 && (
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>📎 Comprobantes ({det.archivos.length}) — clic para abrir</div>
+                  <div className="comprobantes">
+                    {det.archivos.map((a) => (
+                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="comp" onClick={(e) => e.stopPropagation()}>
+                        <span className="comp-ico">{a.mime?.startsWith('image') ? '🖼️' : '📄'}</span>
+                        <span>
+                          <b>{{ arqueo: 'Arqueo de caja', ventas: 'Productos vendidos', voucher: 'Voucher POS', factura: 'Factura' }[a.tipo] || a.tipo}</b>
+                          <small>{a.nombre?.slice(0, 26)}</small>
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {t.montos_editados && (
+                <div className="alerta-edit" style={{ margin: 0 }}>
+                  <b>⚠️ Montos cambiados respecto al PDF:</b>
+                  <ul>{Object.entries(t.montos_editados).map(([k, v]) => (
+                    <li key={k}>{k}: PDF <b>{soles(v.pdf)}</b> → puso <b>{soles(v.puesto)}</b></li>
+                  ))}</ul>
+                </div>
+              )}
+              {t.validado && t.nota_validacion && <p className="nota">✓ Nota de validación: {t.nota_validacion}</p>}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
                 <MiniTabla titulo={`Gastos tienda (${det.gastos.length})`} filas={det.gastos.map(g => [g.descripcion, soles(g.monto), g.detalle])} />
                 <MiniTabla titulo={`Descuentos personal (${det.descuentos.length})`} filas={det.descuentos.map(d => [d.persona, soles(d.monto), d.tipo])} />
                 <MiniTabla titulo={`Stock (${det.stock.length})`} filas={det.stock.map(s => [s.producto, `vend ${s.vendido ?? '—'}`, `cierre ${s.cierre ?? '—'}`])} />
               </div>
-            )}
+            </>)}
           </div>
         </td></tr>
       )}

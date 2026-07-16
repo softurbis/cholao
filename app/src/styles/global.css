@@ -246,6 +246,21 @@ body {
 .arqueo-box > div { display: grid; gap: 2px; font-size: 15px; }
 .arqueo-box small { color: var(--gris); font-size: 11.5px; }
 
+/* Comprobantes del turno (revisión del admin) */
+.comprobantes { display: flex; flex-wrap: wrap; gap: 8px; }
+.comp {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--linea);
+  border-radius: 9px; background: #fff; text-decoration: none; color: var(--tinta); font-size: 12.5px;
+}
+.comp:hover { border-color: var(--rojo); background: #fffafa; }
+.comp-ico { font-size: 18px; }
+.comp span { display: grid; }
+.comp small { color: var(--gris); font-size: 11px; }
+.chip-pend { background: #fff4d6; color: #8a6d00; }
+.chip-alerta { background: #fff1f1; color: var(--rojo); margin-left: 4px; }
+.btn-ok { color: #1a7f37; border-color: #a9e0bd; }
+.btn-ok:hover { background: #e7f7ec; }
+
 /* Alerta: montos que no coinciden con el PDF */
 .alerta-edit {
   background: #fff8e6; border: 1px solid var(--amarillo); border-left: 4px solid #e0a800;
