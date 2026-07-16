@@ -123,6 +123,10 @@ body {
   font-family: inherit; flex: 1; min-width: 140px; background: #fff;
 }
 .form-inline input:focus, .form-inline select:focus { outline: 2px solid var(--rojo); border-color: transparent; }
+.sel-anio {
+  padding: 8px 14px; border: 1px solid var(--linea); border-radius: 8px; font-family: inherit;
+  font-size: 15px; font-weight: 700; background: #fff; color: var(--rojo);
+}
 .tabla select {
   padding: 5px 8px; border: 1px solid var(--linea); border-radius: 6px; font-family: inherit;
   font-size: 13px; background: #fff; max-width: 170px;
