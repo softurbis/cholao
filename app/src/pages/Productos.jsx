@@ -3,12 +3,16 @@ import { supabase } from '../lib/supabase'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const num = (n) => Number(n || 0).toLocaleString('es-PE')
+const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic']
+const labelYm = (ym) => ym ? `${MESES[+ym.slice(5, 7)]} ${ym.slice(0, 4)}` : ''
 
 export default function Productos() {
   const [rows, setRows] = useState([])
   const [sedes, setSedes] = useState([])
   const [fSede, setFSede] = useState('')
   const [fCat, setFCat] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
@@ -21,11 +25,19 @@ export default function Productos() {
     })()
   }, [])
 
-  const cats = useMemo(() => [...new Set(rows.map((x) => x.categoria))].filter(Boolean).sort(), [rows])
-  const fil = useMemo(() => rows.filter((x) =>
-    (!fSede || x.sede_id === fSede) && (!fCat || x.categoria === fCat)), [rows, fSede, fCat])
+  const meses = useMemo(() =>
+    [...new Set(rows.map((x) => (x.periodo_ini || '').slice(0, 7)))].filter(Boolean).sort(), [rows])
 
-  // Ranking por producto (suma presentaciones/filas)
+  const cats = useMemo(() => [...new Set(rows.map((x) => x.categoria))].filter(Boolean).sort(), [rows])
+
+  const fil = useMemo(() => rows.filter((x) => {
+    const ym = (x.periodo_ini || '').slice(0, 7)
+    return (!fSede || x.sede_id === fSede)
+      && (!fCat || x.categoria === fCat)
+      && (!desde || ym >= desde)
+      && (!hasta || ym <= hasta)
+  }), [rows, fSede, fCat, desde, hasta])
+
   const ranking = useMemo(() => {
     const m = {}
     for (const x of fil) {
@@ -51,24 +63,32 @@ export default function Productos() {
   return (
     <div className="pagina">
       <h1>🍧 Productos más vendidos</h1>
-      <p className="pagina-sub">Ranking, venta por categoría y por canal. (Con lo cargado; se llena al subir más exportados.)</p>
-
-      <div className="tarjetas" style={{ marginBottom: 16 }}>
-        <div className="tarjeta"><span className="t-label">Venta en productos</span><span className="t-valor">{soles(totMonto)}</span></div>
-        <div className="tarjeta"><span className="t-label">Unidades vendidas</span><span className="t-valor">{num(totCant)}</span></div>
-        <div className="tarjeta"><span className="t-label">Productos distintos</span><span className="t-valor">{ranking.length}</span></div>
-        <div className="tarjeta"><span className="t-label">Top producto</span><span className="t-valor" style={{ fontSize: 17 }}>{ranking[0]?.producto || '—'}</span></div>
-      </div>
+      <p className="pagina-sub">Ranking por producto, categoría y canal. Filtra por sede y rango de meses.</p>
 
       <div className="form-inline">
         <select value={fSede} onChange={(e) => setFSede(e.target.value)}>
           <option value="">Todas las sedes</option>
           {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
+        <select value={desde} onChange={(e) => setDesde(e.target.value)}>
+          <option value="">Desde (inicio)</option>
+          {meses.map((m) => <option key={m} value={m}>{labelYm(m)}</option>)}
+        </select>
+        <select value={hasta} onChange={(e) => setHasta(e.target.value)}>
+          <option value="">Hasta (hoy)</option>
+          {meses.map((m) => <option key={m} value={m}>{labelYm(m)}</option>)}
+        </select>
         <select value={fCat} onChange={(e) => setFCat(e.target.value)}>
           <option value="">Todas las categorías</option>
           {cats.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+      </div>
+
+      <div className="tarjetas" style={{ marginBottom: 16 }}>
+        <div className="tarjeta"><span className="t-label">Venta en productos</span><span className="t-valor">{soles(totMonto)}</span></div>
+        <div className="tarjeta"><span className="t-label">Unidades vendidas</span><span className="t-valor">{num(totCant)}</span></div>
+        <div className="tarjeta"><span className="t-label">Productos distintos</span><span className="t-valor">{ranking.length}</span></div>
+        <div className="tarjeta"><span className="t-label">Top producto</span><span className="t-valor" style={{ fontSize: 17 }}>{ranking[0]?.producto || '—'}</span></div>
       </div>
 
       {porCat.length > 0 && (
@@ -82,7 +102,7 @@ export default function Productos() {
       <table className="tabla">
         <thead><tr><th>#</th><th>Producto</th><th>Categoría</th><th>Unid.</th><th>Monto</th><th>Salón / Most. / Deliv.</th><th style={{ width: '22%' }}></th></tr></thead>
         <tbody>
-          {ranking.map((r, i) => (
+          {ranking.slice(0, 150).map((r, i) => (
             <tr key={r.producto}>
               <td>{i + 1}</td>
               <td><strong>{r.producto}</strong></td>
@@ -96,6 +116,7 @@ export default function Productos() {
           {ranking.length === 0 && <tr><td colSpan="7" className="nota">Sin datos de productos para el filtro.</td></tr>}
         </tbody>
       </table>
+      {ranking.length > 150 && <p className="nota">Mostrando top 150 de {ranking.length}.</p>}
     </div>
   )
 }
