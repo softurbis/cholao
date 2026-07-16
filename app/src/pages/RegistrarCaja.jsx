@@ -27,6 +27,7 @@ export default function RegistrarCaja() {
   const [gastos, setGastos] = useState([])
   const [descs, setDescs] = useState([])
   const [stock, setStock] = useState([])
+  const [movs, setMovs] = useState([])   // adiciones / mermas del turno
 
   // apertura
   const [ap, setAp] = useState({ sede_id: '', fecha: fmt(new Date()), turno: 'manana', cajero: '', base_inicial: '' })
@@ -64,20 +65,64 @@ export default function RegistrarCaja() {
     setCargando(false)
   }
   async function cargarHijos(tid) {
-    const [{ data: g }, { data: d }, { data: st }] = await Promise.all([
+    const [{ data: g }, { data: d }, { data: st }, { data: mv }] = await Promise.all([
       supabase.from('caja_gastos').select('*').eq('turno_id', tid),
       supabase.from('caja_descuentos').select('*').eq('turno_id', tid),
       supabase.from('caja_stock').select('*').eq('turno_id', tid),
+      supabase.from('caja_stock_mov').select('*').eq('turno_id', tid).order('created_at'),
     ])
-    setGastos(g || []); setDescs(d || []); setStock(st || [])
+    setGastos(g || []); setDescs(d || []); setStock(st || []); setMovs(mv || [])
+  }
+
+  // Movimiento de stock durante el turno: llegó más producto (adición) o se malogró (merma)
+  async function addMov(m) {
+    const cant = m.tipo === 'adicion' ? Math.abs(n(m.cantidad)) : -Math.abs(n(m.cantidad))
+    const { data, error } = await supabase.from('caja_stock_mov').insert({
+      turno_id: turno.id, producto: m.producto, tipo: m.tipo,
+      cantidad: cant, motivo: m.motivo || null, registrado_por: perfil?.id || null,
+    }).select().single()
+    if (error) { aviso('err', error.message); return }
+    setMovs((p) => [...p, data])
+    // actualiza el acumulado del producto
+    const fila = stock.find((s) => s.producto === m.producto)
+    if (fila) {
+      const campo = m.tipo === 'adicion' ? 'adicion' : m.tipo === 'merma' ? 'merma' : 'salida'
+      const nuevo = n(fila[campo]) + Math.abs(n(m.cantidad))
+      await supabase.from('caja_stock').update({ [campo]: nuevo }).eq('id', fila.id)
+      setStock((p) => p.map((s) => s.id === fila.id ? { ...s, [campo]: nuevo } : s))
+    }
+    aviso('ok', `📦 ${m.tipo === 'adicion' ? 'Adición' : 'Merma'} registrada: ${m.producto}`)
+  }
+  async function delMov(mv) {
+    await supabase.from('caja_stock_mov').delete().eq('id', mv.id)
+    setMovs((p) => p.filter((x) => x.id !== mv.id))
+    const fila = stock.find((s) => s.producto === mv.producto)
+    if (fila) {
+      const campo = mv.tipo === 'adicion' ? 'adicion' : mv.tipo === 'merma' ? 'merma' : 'salida'
+      const nuevo = Math.max(0, n(fila[campo]) - Math.abs(n(mv.cantidad)))
+      await supabase.from('caja_stock').update({ [campo]: nuevo }).eq('id', fila.id)
+      setStock((p) => p.map((s) => s.id === fila.id ? { ...s, [campo]: nuevo } : s))
+    }
   }
   useEffect(() => { cargarTodo() }, [perfil])
 
-  // stock inicial según catálogo de la sede elegida
+  // Stock inicial: catálogo de la sede + lo que dejó el turno anterior (para detectar mermas)
   useEffect(() => {
-    const lista = prodCat.filter((p) => !p.sede_id || p.sede_id === ap.sede_id)
-    setStockIni(lista.map((p) => ({ producto: p.nombre, inicio: '' })))
-  }, [prodCat, ap.sede_id])
+    (async () => {
+      const lista = prodCat.filter((p) => !p.sede_id || p.sede_id === ap.sede_id)
+      let previo = {}
+      if (ap.sede_id && ap.fecha) {
+        const { data } = await supabase.rpc('stock_esperado_apertura', { p_sede: ap.sede_id, p_fecha: ap.fecha })
+        for (const r of data || []) previo[r.producto] = Number(r.cierre_anterior)
+      }
+      setStockIni(lista.map((p) => ({
+        producto: p.nombre,
+        esperado: previo[p.nombre] ?? null,     // con cuánto debería abrir
+        inicio: previo[p.nombre] != null ? String(previo[p.nombre]) : '',  // se precarga, se puede corregir
+        motivo: '',
+      })))
+    })()
+  }, [prodCat, ap.sede_id, ap.fecha])
 
   const meta = useMemo(() => {
     if (!turno) return null
@@ -113,6 +158,8 @@ export default function RegistrarCaja() {
   // ---------- FASE 1: APERTURA ----------
   async function abrirCaja() {
     if (!ap.sede_id || !ap.cajero) { aviso('err', 'Falta sede o cajero'); return }
+    const sinMotivo = stockIni.filter((s) => s.esperado != null && s.inicio !== '' && n(s.inicio) !== s.esperado && !s.motivo)
+    if (sinMotivo.length) { aviso('err', 'Indica el motivo de la diferencia en: ' + sinMotivo.map((s) => s.producto).join(', ')); return }
     setOcupado(true)
     const { data, error } = await supabase.from('caja_turno').upsert({
       sede_id: ap.sede_id, fecha: ap.fecha, turno: ap.turno, cajero: ap.cajero,
@@ -120,11 +167,24 @@ export default function RegistrarCaja() {
       abierto_por: perfil?.id || null, origen_archivo: 'registro-app',
     }, { onConflict: 'sede_id,fecha,turno' }).select().single()
     if (error) { aviso('err', error.message); setOcupado(false); return }
-    const st = stockIni.filter((x) => x.inicio !== '').map((x) => ({ turno_id: data.id, producto: x.producto, inicio: n(x.inicio) }))
+    const st = stockIni.filter((x) => x.inicio !== '').map((x) => ({
+      turno_id: data.id, producto: x.producto, inicio: n(x.inicio),
+      esperado_apertura: x.esperado ?? null, adicion: 0, merma: 0, salida: 0,
+    }))
     await supabase.from('caja_stock').delete().eq('turno_id', data.id)
     if (st.length) await supabase.from('caja_stock').insert(st)
+
+    // Deja registrada cada diferencia contra lo que dejó el turno anterior
+    const ajustes = stockIni
+      .filter((x) => x.esperado != null && x.inicio !== '' && n(x.inicio) !== x.esperado)
+      .map((x) => ({
+        turno_id: data.id, producto: x.producto, tipo: 'ajuste_apertura',
+        cantidad: n(x.inicio) - x.esperado, motivo: x.motivo, registrado_por: perfil?.id || null,
+      }))
+    if (ajustes.length) await supabase.from('caja_stock_mov').insert(ajustes)
+
     setTurno(data); await cargarHijos(data.id); setOcupado(false)
-    aviso('ok', '✅ Caja abierta. Ya puedes registrar gastos y adelantos.')
+    aviso('ok', `✅ Caja abierta${ajustes.length ? ` (${ajustes.length} diferencia(s) registrada(s))` : ''}. Ya puedes registrar gastos y adelantos.`)
   }
 
   // ---------- FASE 2: MOVIMIENTOS ----------
@@ -269,9 +329,9 @@ export default function RegistrarCaja() {
         : null,
     }).eq('id', turno.id)
     if (error) { aviso('err', error.message); setOcupado(false); return }
-    // stock: cierre + vendido + comparación con el sistema
+    // stock: cierre + vendido (descontando merma) + comparación con el sistema
     for (const s of stockCruzado) {
-      const vendido = n(s.inicio) + n(s.adicion) - n(s.salida) - n(s.cierre)
+      const vendido = n(s.inicio) + n(s.adicion) - n(s.merma) - n(s.salida) - n(s.cierre)
       await supabase.from('caja_stock').update({
         cierre: n(s.cierre), vendido, adicion: n(s.adicion), salida: n(s.salida),
         venta_sistema: s.vendido_sistema ?? null,
@@ -309,19 +369,41 @@ export default function RegistrarCaja() {
         </div>
 
         <div className="seccion">
-          <h2 className="sub-titulo">📦 Stock inicial</h2>
+          <h2 className="sub-titulo">📦 Stock inicial <span className="nota">— cuenta y declara si algo no está</span></h2>
           <table className="tabla">
-            <thead><tr><th>Producto</th><th style={{ width: 140 }}>Cantidad inicial</th></tr></thead>
+            <thead><tr><th>Producto</th><th>Dejó turno anterior</th><th style={{ width: 120 }}>Cuenta real</th><th>Diferencia</th><th>Motivo</th></tr></thead>
             <tbody>
-              {stockIni.map((s, i) => (
-                <tr key={s.producto}>
-                  <td><strong>{s.producto}</strong></td>
-                  <td><input type="number" className="in-num" value={s.inicio} onChange={(e) => setStockIni(stockIni.map((r, j) => j === i ? { ...r, inicio: e.target.value } : r))} /></td>
-                </tr>
-              ))}
-              {stockIni.length === 0 && <tr><td colSpan="2" className="nota">Sin productos. Agrégalos en Configuración.</td></tr>}
+              {stockIni.map((s, i) => {
+                const dif = s.esperado == null || s.inicio === '' ? null : n(s.inicio) - s.esperado
+                return (
+                  <tr key={s.producto} className={dif ? 'fila-edit' : ''}>
+                    <td><strong>{s.producto}</strong></td>
+                    <td>{s.esperado ?? <span className="nota">—</span>}</td>
+                    <td><input type="number" className="in-num" value={s.inicio}
+                      onChange={(e) => setStockIni(stockIni.map((r, j) => j === i ? { ...r, inicio: e.target.value } : r))} /></td>
+                    <td style={{ color: dif ? 'var(--rojo)' : 'inherit', fontWeight: dif ? 700 : 400 }}>
+                      {dif == null ? '—' : dif === 0 ? '✓' : (dif > 0 ? '+' + dif : dif)}
+                    </td>
+                    <td>
+                      {dif ? (
+                        <select value={s.motivo} onChange={(e) => setStockIni(stockIni.map((r, j) => j === i ? { ...r, motivo: e.target.value } : r))}>
+                          <option value="">¿Por qué? *</option>
+                          <option value="MERMA">Merma (se malogró)</option>
+                          <option value="FALTANTE">Faltante (no está)</option>
+                          <option value="SOBRANTE">Sobrante (hay de más)</option>
+                          <option value="MAL CONTEO ANTERIOR">Mal conteo del turno anterior</option>
+                          <option value="OTRO">Otro</option>
+                        </select>
+                      ) : <span className="nota">—</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+              {stockIni.length === 0 && <tr><td colSpan="5" className="nota">Sin productos. Agrégalos en Configuración.</td></tr>}
             </tbody>
           </table>
+          {stockIni.some((s) => s.esperado != null && s.inicio !== '' && n(s.inicio) !== s.esperado && !s.motivo) &&
+            <p className="nota" style={{ color: 'var(--rojo)' }}>⚠️ Hay diferencias sin motivo. Elige el motivo para poder abrir.</p>}
         </div>
         <div style={{ marginTop: 18 }}><button className="btn-guardar" onClick={abrirCaja} disabled={ocupado}>{ocupado ? 'Abriendo…' : '🔓 Abrir caja'}</button></div>
       </>)}
@@ -341,6 +423,32 @@ export default function RegistrarCaja() {
             filas={descs.map((d) => ({ id: d.id, a: d.persona, b: d.monto, c: d.tipo }))}
             onDel={(id) => delFila('caja_descuentos', id, setDescs)} />
         </div>
+        {/* Movimientos de stock durante el turno */}
+        <div className="seccion" style={{ marginTop: 18 }}>
+          <h2 className="sub-titulo">📦 Movimientos de stock <span className="nota">— llegó más producto o se malogró algo</span></h2>
+          <MovStock productos={stock.map((s) => s.producto)} onAdd={addMov} />
+          {movs.length > 0 && (
+            <table className="tabla" style={{ marginTop: 10 }}>
+              <tbody>
+                {movs.map((m) => (
+                  <tr key={m.id}>
+                    <td>
+                      <span className={`chip ${m.tipo === 'adicion' ? 'chip-ok' : 'chip-off'}`}
+                        style={m.tipo !== 'adicion' ? { background: '#fff1f1', color: 'var(--rojo)' } : {}}>
+                        {m.tipo === 'adicion' ? '+ Adición' : m.tipo === 'merma' ? '− Merma' : m.tipo === 'ajuste_apertura' ? '⚑ Apertura' : '− Salida'}
+                      </span>
+                    </td>
+                    <td><strong>{m.producto}</strong></td>
+                    <td>{m.cantidad > 0 ? '+' : ''}{m.cantidad}</td>
+                    <td className="nota">{m.motivo || '—'}</td>
+                    <td>{m.tipo !== 'ajuste_apertura' && <button className="btn-mini btn-peligro" onClick={() => delMov(m)}>✕</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
         <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn-guardar" onClick={() => setFase('cierre')}>➡️ Ir al cierre</button>
           <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado}>🗑️ Eliminar turno</button>
@@ -446,15 +554,17 @@ export default function RegistrarCaja() {
           <div className="seccion">
             <h2 className="sub-titulo">📦 Stock final {prodPdf && <span className="nota">vs sistema</span>}</h2>
             <table className="tabla">
-              <thead><tr><th>Producto</th><th>Inicio</th><th>Cierre</th><th>Vendido</th>{prodPdf && <><th>Sistema</th><th></th></>}</tr></thead>
+              <thead><tr><th>Producto</th><th>Inicio</th><th>+Adic.</th><th>−Merma</th><th>Cierre</th><th>Vendido</th>{prodPdf && <><th>Sistema</th><th></th></>}</tr></thead>
               <tbody>
                 {stockCruzado.map((s, i) => {
-                  const vend = n(s.inicio) + n(s.adicion) - n(s.salida) - n(s.cierre)
+                  const vend = n(s.inicio) + n(s.adicion) - n(s.merma) - n(s.salida) - n(s.cierre)
                   const cuadra = s.vendido_sistema == null ? null : vend === s.vendido_sistema
                   return (
                     <tr key={s.id}>
                       <td><strong>{s.producto}</strong></td>
                       <td>{s.inicio}</td>
+                      <td>{n(s.adicion) || <span className="nota">—</span>}</td>
+                      <td style={{ color: n(s.merma) ? 'var(--rojo)' : 'inherit' }}>{n(s.merma) || <span className="nota">—</span>}</td>
                       <td><input type="number" className="in-num" value={s.cierre ?? ''} onChange={(e) => setStock(stock.map((r, j) => j === i ? { ...r, cierre: e.target.value } : r))} /></td>
                       <td><b>{vend}</b></td>
                       {prodPdf && <>
@@ -464,7 +574,7 @@ export default function RegistrarCaja() {
                     </tr>
                   )
                 })}
-                {stock.length === 0 && <tr><td colSpan="6" className="nota">Sin stock registrado en la apertura.</td></tr>}
+                {stock.length === 0 && <tr><td colSpan="8" className="nota">Sin stock registrado en la apertura.</td></tr>}
               </tbody>
             </table>
             {prodPdf && <p className="nota">Solo se comparan los productos que llevas por stock. El PDF trae {prodPdf.items.length} productos vendidos en total.</p>}
@@ -479,6 +589,35 @@ export default function RegistrarCaja() {
           <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado} style={{ marginLeft: 'auto' }}>🗑️ Eliminar turno</button>
         </div>
       </>)}
+    </div>
+  )
+}
+
+// Alta de movimiento de stock: adición (llegó más) o merma (se malogró)
+function MovStock({ productos, onAdd }) {
+  const [m, setM] = useState({ producto: '', tipo: 'adicion', cantidad: '', motivo: '' })
+  const MOTIVOS = { adicion: ['Llegó pedido', 'Traslado de otra sede', 'Producción nueva', 'Otro'], merma: ['Se malogró', 'Se cayó / rompió', 'Vencido', 'Cortesía / degustación', 'Otro'], salida: ['Traslado a otra sede', 'Consumo interno', 'Otro'] }
+  function agregar() {
+    if (!m.producto || !Number(m.cantidad)) return
+    onAdd(m); setM({ producto: '', tipo: m.tipo, cantidad: '', motivo: '' })
+  }
+  return (
+    <div className="fila-mini">
+      <select value={m.producto} onChange={(e) => setM({ ...m, producto: e.target.value })}>
+        <option value="">Producto…</option>
+        {productos.map((p) => <option key={p} value={p}>{p}</option>)}
+      </select>
+      <select value={m.tipo} onChange={(e) => setM({ ...m, tipo: e.target.value, motivo: '' })} style={{ maxWidth: 120 }}>
+        <option value="adicion">+ Adición</option>
+        <option value="merma">− Merma</option>
+        <option value="salida">− Salida</option>
+      </select>
+      <input type="number" placeholder="Cant." value={m.cantidad} onChange={(e) => setM({ ...m, cantidad: e.target.value })} style={{ maxWidth: 80 }} />
+      <select value={m.motivo} onChange={(e) => setM({ ...m, motivo: e.target.value })} style={{ maxWidth: 170 }}>
+        <option value="">Motivo…</option>
+        {(MOTIVOS[m.tipo] || []).map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <button className="btn-mini" onClick={agregar}>+</button>
     </div>
   )
 }
