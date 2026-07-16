@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { textoDePdf } from '../lib/leerPdf'
 import { parseArqueo } from '../lib/parseArqueo'
+import { parseProductos, cruzarConStock } from '../lib/parseProductos'
 import { climaDe } from '../lib/clima'
 
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -33,10 +34,13 @@ export default function RegistrarCaja() {
 
   // cierre
   const [ci, setCi] = useState({ clima: '', observaciones: '', efectivo_contado: '' })
-  const [arqueo, setArqueo] = useState(null)
-  const [pdfFile, setPdfFile] = useState(null)
+  const [arqueo, setArqueo] = useState(null)        // valores leídos del PDF (editables)
+  const [prodPdf, setProdPdf] = useState(null)      // PDF de productos vendidos
+  const [adjuntos, setAdjuntos] = useState([])      // [{tipo, file}] a subir
   const [climaAuto, setClimaAuto] = useState(null)
   const [fase, setFase] = useState('turno')         // turno | cierre
+
+  const setArq = (campo, valor) => setArqueo((a) => ({ ...a, [campo]: valor === '' ? '' : Number(valor) }))
 
   const aviso = (tipo, texto) => { setMsg({ tipo, texto }); setTimeout(() => setMsg(null), 5000) }
 
@@ -83,6 +87,11 @@ export default function RegistrarCaja() {
   const totGastos = gastos.reduce((a, x) => a + n(x.monto), 0)
   const totDescs = descs.reduce((a, x) => a + n(x.monto), 0)
 
+  // Cruza el stock con lo que el PDF de productos dice que se vendió
+  const stockCruzado = useMemo(
+    () => prodPdf ? cruzarConStock(prodPdf.items, stock) : stock.map((s) => ({ ...s, vendido_sistema: null })),
+    [prodPdf, stock])
+
   // ---------- FASE 1: APERTURA ----------
   async function abrirCaja() {
     if (!ap.sede_id || !ap.cajero) { aviso('err', 'Falta sede o cajero'); return }
@@ -123,17 +132,56 @@ export default function RegistrarCaja() {
   }
 
   // ---------- FASE 3: CIERRE ----------
+  // El PDF de arqueo se lee y llena los montos (que quedan editables)
   async function subirArqueo(file) {
-    setPdfFile(file); setOcupado(true)
+    setOcupado(true)
     try {
       const texto = await textoDePdf(file)
       const d = parseArqueo(texto)
       if (!d.ok) { aviso('err', d.error); setOcupado(false); return }
       setArqueo(d)
+      setAdjuntos((p) => [...p.filter((x) => x.tipo !== 'arqueo'), { tipo: 'arqueo', file }])
       if (!ci.efectivo_contado) setCi((c) => ({ ...c, efectivo_contado: d.efectivo_en_cierre ?? '' }))
-      aviso('ok', `📄 Arqueo leído: venta del sistema ${soles(d.venta_sistema)}`)
+      aviso('ok', `📄 Arqueo leído: venta del sistema ${soles(d.venta_sistema)} (puedes corregir los montos)`)
     } catch (e) { aviso('err', 'No pude leer el PDF: ' + e.message) }
     setOcupado(false)
+  }
+  function addAdjunto(tipo, file) {
+    if (!file) return
+    setAdjuntos((p) => [...p.filter((x) => x.tipo !== tipo || tipo === 'factura'), { tipo, file }])
+    aviso('ok', `📎 ${file.name} adjuntado`)
+  }
+
+  // PDF "PRODUCTOS VENDIDOS": trae lo que el sistema dice que se vendió de cada producto
+  async function subirProductos(file) {
+    setOcupado(true)
+    try {
+      const d = parseProductos(await textoDePdf(file))
+      if (!d.ok) { aviso('err', d.error); setOcupado(false); return }
+      setProdPdf(d)
+      setAdjuntos((p) => [...p.filter((x) => x.tipo !== 'ventas'), { tipo: 'ventas', file }])
+      aviso('ok', `📄 ${d.items.length} productos leídos (S/ ${d.total}) — comparando con tu stock`)
+    } catch (e) { aviso('err', 'No pude leer el PDF: ' + e.message) }
+    setOcupado(false)
+  }
+  const quitarAdjunto = (i) => setAdjuntos((p) => p.filter((_, j) => j !== i))
+
+  // Mensaje de WhatsApp con el resumen del turno
+  function enviarWsp() {
+    const txt = [
+      `*CIERRE DE CAJA — ${turno.sede?.nombre || ''}*`,
+      `${turno.fecha} · ${turno.turno === 'manana' ? 'Mañana' : 'Tarde'} · ${turno.cajero}`,
+      ``,
+      `Venta del sistema: ${soles(arqueo?.venta_sistema)}`,
+      `Efectivo: ${soles(arqueo?.sis_efectivo)} | Tarjeta: ${soles(arqueo?.sis_tarjeta)} | Yape: ${soles(arqueo?.sis_yape)}`,
+      `Gastos: ${soles(totGastos)} | Adelantos: ${soles(totDescs)}`,
+      meta ? `Meta: ${soles(meta)} → ${rendimiento || '—'}` : '',
+      `Faltante POS: ${soles(faltantePos)} → ${Math.abs(descuadre) < 0.5 ? '✅ CUADRA' : `⚠️ descuadre ${soles(Math.abs(descuadre))}`}`,
+      ci.clima ? `Clima: ${ci.clima}` : '',
+      ``,
+      `Ver sistema: ${window.location.origin}${window.location.pathname}`,
+    ].filter(Boolean).join('\n')
+    window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank')
   }
 
   async function verClima() {
@@ -157,11 +205,18 @@ export default function RegistrarCaja() {
   async function cerrarTurno() {
     if (!arqueo) { aviso('err', 'Sube el PDF de arqueo del POS para cerrar'); return }
     setOcupado(true)
-    let voucher_url = null
-    if (pdfFile) {
-      const ruta = `${turno.fecha}/${turno.sede_id}-${turno.turno}-${Date.now()}.pdf`
-      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, pdfFile, { contentType: 'application/pdf', upsert: true })
-      if (!eUp) voucher_url = ruta
+    // sube todos los adjuntos (arqueo, 2º reporte, voucher foto, facturas)
+    let primeroArqueo = null
+    for (const a of adjuntos) {
+      const ext = (a.file.name.split('.').pop() || 'bin').toLowerCase()
+      const ruta = `${turno.fecha}/${turno.sede_id}-${turno.turno}-${a.tipo}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
+      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, a.file, { contentType: a.file.type || undefined, upsert: true })
+      if (eUp) { aviso('err', 'No pude subir ' + a.file.name + ': ' + eUp.message); continue }
+      await supabase.from('caja_adjuntos').insert({
+        turno_id: turno.id, tipo: a.tipo, archivo: ruta, nombre: a.file.name,
+        mime: a.file.type || null, subido_por: perfil?.id || null,
+      })
+      if (a.tipo === 'arqueo' && !primeroArqueo) primeroArqueo = ruta
     }
     const ventaTotal = n(arqueo.venta_sistema)
     const { error } = await supabase.from('caja_turno').update({
@@ -172,17 +227,22 @@ export default function RegistrarCaja() {
       gastos_tienda: totGastos, venta_sistema: ventaTotal, venta_total: ventaTotal,
       deficit_sobra: -descuadre, meta_turno: meta ?? null,
       rendimiento, clima: ci.clima || null, clima_auto: climaAuto?.clima || null,
-      observaciones: ci.observaciones || null, voucher_url,
+      observaciones: ci.observaciones || null, voucher_url: primeroArqueo,
     }).eq('id', turno.id)
     if (error) { aviso('err', error.message); setOcupado(false); return }
-    // stock: cierre + vendido
-    for (const s of stock) {
+    // stock: cierre + vendido + comparación con el sistema
+    for (const s of stockCruzado) {
       const vendido = n(s.inicio) + n(s.adicion) - n(s.salida) - n(s.cierre)
-      await supabase.from('caja_stock').update({ cierre: n(s.cierre), vendido, adicion: n(s.adicion), salida: n(s.salida) }).eq('id', s.id)
+      await supabase.from('caja_stock').update({
+        cierre: n(s.cierre), vendido, adicion: n(s.adicion), salida: n(s.salida),
+        venta_sistema: s.vendido_sistema ?? null,
+        esperado: s.vendido_sistema ?? null,
+        coincide: s.vendido_sistema == null ? null : vendido === s.vendido_sistema,
+      }).eq('id', s.id)
     }
     setOcupado(false)
     aviso('ok', '✅ Turno cerrado correctamente')
-    setTimeout(() => { setTurno(null); setArqueo(null); setPdfFile(null); setFase('turno'); setCi({ clima: '', observaciones: '', efectivo_contado: '' }); cargarTodo() }, 1200)
+    setTimeout(() => { setTurno(null); setArqueo(null); setAdjuntos([]); setFase('turno'); setCi({ clima: '', observaciones: '', efectivo_contado: '' }); cargarTodo() }, 1200)
   }
 
   if (cargando) return <div className="pagina"><h1>Caja</h1><p className="nota">Cargando…</p></div>
@@ -252,16 +312,37 @@ export default function RegistrarCaja() {
 
         <div className="seccion" style={{ marginBottom: 16 }}>
           <h2 className="sub-titulo">📄 Arqueo del POS (PDF)</h2>
-          <p className="nota">Sube el PDF de arqueo. De ahí se jala la venta del sistema y el desglose — no tipeas nada.</p>
+          <p className="nota">Sube el PDF y se jalan los montos solos. <b>Puedes corregirlos si algo no cuadra.</b></p>
           <input type="file" accept="application/pdf" onChange={(e) => e.target.files[0] && subirArqueo(e.target.files[0])} />
-          {arqueo && (
+          {arqueo && (<>
             <div className="arqueo-box">
-              <div><span className="t-label">Venta del sistema</span><b>{soles(arqueo.venta_sistema)}</b></div>
-              <div><span className="t-label">Efectivo</span>{soles(arqueo.sis_efectivo)} <small>({arqueo.sis_efectivo_op} op)</small></div>
-              <div><span className="t-label">Tarjeta</span>{soles(arqueo.sis_tarjeta)} <small>({arqueo.sis_tarjeta_op})</small></div>
-              <div><span className="t-label">Yape</span>{soles(arqueo.sis_yape)} <small>({arqueo.sis_yape_op})</small></div>
-              <div><span className="t-label">Faltante POS</span><b className="def-neg">{soles(faltantePos)}</b></div>
+              <label><span className="t-label">Venta del sistema</span><input type="number" className="in-arq" value={arqueo.venta_sistema ?? ''} onChange={(e) => setArq('venta_sistema', e.target.value)} /></label>
+              <label><span className="t-label">Efectivo <small>({arqueo.sis_efectivo_op} op)</small></span><input type="number" className="in-arq" value={arqueo.sis_efectivo ?? ''} onChange={(e) => setArq('sis_efectivo', e.target.value)} /></label>
+              <label><span className="t-label">Tarjeta <small>({arqueo.sis_tarjeta_op})</small></span><input type="number" className="in-arq" value={arqueo.sis_tarjeta ?? ''} onChange={(e) => setArq('sis_tarjeta', e.target.value)} /></label>
+              <label><span className="t-label">Yape <small>({arqueo.sis_yape_op})</small></span><input type="number" className="in-arq" value={arqueo.sis_yape ?? ''} onChange={(e) => setArq('sis_yape', e.target.value)} /></label>
+              <label><span className="t-label">Faltante POS</span><input type="number" className="in-arq" value={arqueo.diferencia_pos ?? ''} onChange={(e) => setArq('diferencia_pos', e.target.value)} /></label>
               <div><span className="t-label">Cajero POS</span><small>{arqueo.cajero}</small></div>
+            </div>
+            {Math.abs(n(arqueo.venta_sistema) - (n(arqueo.sis_efectivo) + n(arqueo.sis_tarjeta) + n(arqueo.sis_yape) + n(arqueo.sis_plin))) > 0.5 &&
+              <p className="nota" style={{ color: 'var(--rojo)' }}>⚠️ La suma de los medios de pago no cuadra con la venta del sistema.</p>}
+          </>)}
+        </div>
+
+        <div className="seccion" style={{ marginBottom: 16 }}>
+          <h2 className="sub-titulo">📎 Otros adjuntos del día</h2>
+          <div className="adj-grid">
+            <label className="campo"><span>Productos vendidos (PDF)</span><input type="file" accept="application/pdf" onChange={(e) => e.target.files[0] && subirProductos(e.target.files[0])} /></label>
+            <label className="campo"><span>Voucher del POS (foto)</span><input type="file" accept="image/*" capture="environment" onChange={(e) => addAdjunto('voucher', e.target.files[0])} /></label>
+            <label className="campo"><span>Facturas de gastos (opcional)</span><input type="file" accept="image/*,application/pdf" multiple onChange={(e) => [...e.target.files].forEach((f) => addAdjunto('factura', f))} /></label>
+          </div>
+          {adjuntos.length > 0 && (
+            <div className="sugerencias" style={{ marginTop: 10 }}>
+              {adjuntos.map((a, i) => (
+                <span key={i} className="chip chip-ok" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                  {a.tipo}: {a.file.name.slice(0, 22)}
+                  <button className="btn-mini" style={{ padding: '0 5px' }} onClick={() => quitarAdjunto(i)}>✕</button>
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -288,28 +369,38 @@ export default function RegistrarCaja() {
           </div>
 
           <div className="seccion">
-            <h2 className="sub-titulo">📦 Stock final</h2>
+            <h2 className="sub-titulo">📦 Stock final {prodPdf && <span className="nota">vs sistema</span>}</h2>
             <table className="tabla">
-              <thead><tr><th>Producto</th><th>Inicio</th><th>Cierre</th><th>Vendido</th></tr></thead>
+              <thead><tr><th>Producto</th><th>Inicio</th><th>Cierre</th><th>Vendido</th>{prodPdf && <><th>Sistema</th><th></th></>}</tr></thead>
               <tbody>
-                {stock.map((s, i) => (
-                  <tr key={s.id}>
-                    <td><strong>{s.producto}</strong></td>
-                    <td>{s.inicio}</td>
-                    <td><input type="number" className="in-num" value={s.cierre ?? ''} onChange={(e) => setStock(stock.map((r, j) => j === i ? { ...r, cierre: e.target.value } : r))} /></td>
-                    <td><b>{n(s.inicio) + n(s.adicion) - n(s.salida) - n(s.cierre)}</b></td>
-                  </tr>
-                ))}
-                {stock.length === 0 && <tr><td colSpan="4" className="nota">Sin stock registrado en la apertura.</td></tr>}
+                {stockCruzado.map((s, i) => {
+                  const vend = n(s.inicio) + n(s.adicion) - n(s.salida) - n(s.cierre)
+                  const cuadra = s.vendido_sistema == null ? null : vend === s.vendido_sistema
+                  return (
+                    <tr key={s.id}>
+                      <td><strong>{s.producto}</strong></td>
+                      <td>{s.inicio}</td>
+                      <td><input type="number" className="in-num" value={s.cierre ?? ''} onChange={(e) => setStock(stock.map((r, j) => j === i ? { ...r, cierre: e.target.value } : r))} /></td>
+                      <td><b>{vend}</b></td>
+                      {prodPdf && <>
+                        <td>{s.vendido_sistema ?? <span className="nota">—</span>}</td>
+                        <td>{cuadra === null ? '' : cuadra ? <span className="chip chip-ok">✓</span> : <span className="chip chip-off" style={{ background: '#fff1f1', color: 'var(--rojo)' }}>≠ {vend - s.vendido_sistema}</span>}</td>
+                      </>}
+                    </tr>
+                  )
+                })}
+                {stock.length === 0 && <tr><td colSpan="6" className="nota">Sin stock registrado en la apertura.</td></tr>}
               </tbody>
             </table>
+            {prodPdf && <p className="nota">Solo se comparan los productos que llevas por stock. El PDF trae {prodPdf.items.length} productos vendidos en total.</p>}
           </div>
         </div>
 
-        <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
+        <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn-mini" onClick={() => setFase('turno')}>⬅️ Volver</button>
           <button className="btn-guardar" onClick={cerrarTurno} disabled={ocupado || !arqueo}>{ocupado ? 'Cerrando…' : '🔒 Cerrar turno'}</button>
           <button className="btn-mini" onClick={() => window.print()}>🖨️ PDF / Captura</button>
+          <button className="btn-wsp" onClick={enviarWsp} disabled={!arqueo}>💬 Enviar por WhatsApp</button>
         </div>
       </>)}
     </div>
