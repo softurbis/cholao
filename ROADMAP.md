@@ -29,7 +29,7 @@ Estado a la fecha. ✅ hecho · 🔨 en curso · ⬜ pendiente
 6b. ✅ **Compras de Juan 2026** — 7,187 compras S/81.5k + 4,166 entregas + 210 cuadres de fondo (ene→jul)
 
 ## FASE 3 — Paneles operativos (captura)
-7. ⬜ **Compras** — registro con precio real, contado/crédito, stock valorizado, cuentas por pagar
+7. 🔨 **Compras** — ✅ panel con rankings (proveedores/productos), detalle, entregas y fondo Juan; ⬜ falta formulario de registro diario + crédito/stock valorizado
 8. ⬜ **Compras móvil** — listas rápidas por sede (las señoras desde el celu)
 9. ⬜ **Obligaciones** — fijos/variables con calendario de vencimientos
 10. ⬜ **Planilla** — sueldos + descuentos que vienen de la caja diaria
