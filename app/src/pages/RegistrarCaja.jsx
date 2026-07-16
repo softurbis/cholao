@@ -35,6 +35,7 @@ export default function RegistrarCaja() {
   // cierre
   const [ci, setCi] = useState({ clima: '', observaciones: '', efectivo_contado: '' })
   const [arqueo, setArqueo] = useState(null)        // valores leídos del PDF (editables)
+  const [arqueoOrig, setArqueoOrig] = useState(null) // lo que decía el PDF (nunca se toca)
   const [prodPdf, setProdPdf] = useState(null)      // PDF de productos vendidos
   const [adjuntos, setAdjuntos] = useState([])      // [{tipo, file}] a subir
   const [climaAuto, setClimaAuto] = useState(null)
@@ -96,6 +97,18 @@ export default function RegistrarCaja() {
   const tieneVoucher = adjuntos.some((a) => a.tipo === 'voucher')
   const faltantes = [!arqueo && 'arqueo', !prodPdf && 'productos vendidos', !tieneVoucher && 'foto del POS'].filter(Boolean)
   const listo = faltantes.length === 0
+
+  // Campos del arqueo que se pueden editar, y detección de los que ya no coinciden con el PDF
+  const CAMPOS_ARQ = [
+    ['venta_sistema', 'Venta del sistema'], ['sis_efectivo', 'Efectivo'],
+    ['sis_tarjeta', 'Tarjeta'], ['sis_yape', 'Yape'], ['diferencia_pos', 'Faltante POS'],
+  ]
+  const editados = useMemo(() => {
+    if (!arqueo || !arqueoOrig) return []
+    return CAMPOS_ARQ
+      .filter(([k]) => n(arqueo[k]) !== n(arqueoOrig[k]))
+      .map(([k, label]) => ({ campo: k, label, pdf: n(arqueoOrig[k]), puesto: n(arqueo[k]) }))
+  }, [arqueo, arqueoOrig])
 
   // ---------- FASE 1: APERTURA ----------
   async function abrirCaja() {
@@ -160,6 +173,7 @@ export default function RegistrarCaja() {
       const d = parseArqueo(texto)
       if (!d.ok) { aviso('err', d.error); setOcupado(false); return }
       setArqueo(d)
+      setArqueoOrig(d)   // se guarda lo que dijo el PDF para detectar cambios
       setAdjuntos((p) => [...p.filter((x) => x.tipo !== 'arqueo'), { tipo: 'arqueo', file }])
       if (!ci.efectivo_contado) setCi((c) => ({ ...c, efectivo_contado: d.efectivo_en_cierre ?? '' }))
       aviso('ok', `📄 Arqueo leído: venta del sistema ${soles(d.venta_sistema)} (puedes corregir los montos)`)
@@ -198,6 +212,7 @@ export default function RegistrarCaja() {
       meta ? `Meta: ${soles(meta)} → ${rendimiento || '—'}` : '',
       `Faltante POS: ${soles(faltantePos)} → ${Math.abs(descuadre) < 0.5 ? '✅ CUADRA' : `⚠️ descuadre ${soles(Math.abs(descuadre))}`}`,
       ci.clima ? `Clima: ${ci.clima}` : '',
+      ...(editados.length ? ['', '⚠️ *MONTOS EDITADOS vs PDF:*', ...editados.map((e) => `• ${e.label}: PDF ${soles(e.pdf)} → ${soles(e.puesto)}`)] : []),
       ``,
       `Ver sistema: ${window.location.origin}${window.location.pathname}`,
     ].filter(Boolean).join('\n')
@@ -248,6 +263,10 @@ export default function RegistrarCaja() {
       deficit_sobra: -descuadre, meta_turno: meta ?? null,
       rendimiento, clima: ci.clima || null, clima_auto: climaAuto?.clima || null,
       observaciones: ci.observaciones || null, voucher_url: primeroArqueo,
+      // evidencia: qué montos se cambiaron respecto al PDF
+      montos_editados: editados.length
+        ? Object.fromEntries(editados.map((e) => [e.campo, { pdf: e.pdf, puesto: e.puesto }]))
+        : null,
     }).eq('id', turno.id)
     if (error) { aviso('err', error.message); setOcupado(false); return }
     // stock: cierre + vendido + comparación con el sistema
@@ -351,18 +370,38 @@ export default function RegistrarCaja() {
         {arqueo && (
         <div className="seccion" style={{ marginBottom: 16 }}>
           <h2 className="sub-titulo">💰 Montos leídos del arqueo <span className="nota">— puedes corregirlos</span></h2>
-          <>
-            <div className="arqueo-box">
-              <label><span className="t-label">Venta del sistema</span><input type="number" className="in-arq" value={arqueo.venta_sistema ?? ''} onChange={(e) => setArq('venta_sistema', e.target.value)} /></label>
-              <label><span className="t-label">Efectivo <small>({arqueo.sis_efectivo_op} op)</small></span><input type="number" className="in-arq" value={arqueo.sis_efectivo ?? ''} onChange={(e) => setArq('sis_efectivo', e.target.value)} /></label>
-              <label><span className="t-label">Tarjeta <small>({arqueo.sis_tarjeta_op})</small></span><input type="number" className="in-arq" value={arqueo.sis_tarjeta ?? ''} onChange={(e) => setArq('sis_tarjeta', e.target.value)} /></label>
-              <label><span className="t-label">Yape <small>({arqueo.sis_yape_op})</small></span><input type="number" className="in-arq" value={arqueo.sis_yape ?? ''} onChange={(e) => setArq('sis_yape', e.target.value)} /></label>
-              <label><span className="t-label">Faltante POS</span><input type="number" className="in-arq" value={arqueo.diferencia_pos ?? ''} onChange={(e) => setArq('diferencia_pos', e.target.value)} /></label>
-              <div><span className="t-label">Cajero POS</span><small>{arqueo.cajero}</small></div>
+
+          {editados.length > 0 && (
+            <div className="alerta-edit">
+              <b>⚠️ Ojo: {editados.length === 1 ? 'hay 1 monto que NO coincide' : `hay ${editados.length} montos que NO coinciden`} con el PDF</b>
+              <ul>
+                {editados.map((e) => (
+                  <li key={e.campo}>
+                    <b>{e.label}</b>: el PDF dice <b>{soles(e.pdf)}</b> y se puso <b>{soles(e.puesto)}</b>
+                    <span className="dif-edit"> ({e.puesto - e.pdf > 0 ? '+' : ''}{soles(e.puesto - e.pdf)})</span>
+                  </li>
+                ))}
+              </ul>
+              <span className="nota">Queda registrado en el turno para que administración lo revise.</span>
             </div>
-            {Math.abs(n(arqueo.venta_sistema) - (n(arqueo.sis_efectivo) + n(arqueo.sis_tarjeta) + n(arqueo.sis_yape) + n(arqueo.sis_plin))) > 0.5 &&
-              <p className="nota" style={{ color: 'var(--rojo)' }}>⚠️ La suma de los medios de pago no cuadra con la venta del sistema.</p>}
-          </>
+          )}
+
+          <div className="arqueo-box">
+            {CAMPOS_ARQ.map(([campo, label]) => {
+              const ops = { sis_efectivo: arqueo.sis_efectivo_op, sis_tarjeta: arqueo.sis_tarjeta_op, sis_yape: arqueo.sis_yape_op }[campo]
+              const mod = arqueoOrig && n(arqueo[campo]) !== n(arqueoOrig[campo])
+              return (
+                <label key={campo} className={mod ? 'campo-mod' : ''}>
+                  <span className="t-label">{label} {ops != null && <small>({ops} op)</small>}</span>
+                  <input type="number" className="in-arq" value={arqueo[campo] ?? ''} onChange={(e) => setArq(campo, e.target.value)} />
+                  {mod && <span className="pdf-dice">PDF: {soles(arqueoOrig[campo])} <button className="btn-mini" onClick={() => setArq(campo, arqueoOrig[campo])}>↺</button></span>}
+                </label>
+              )
+            })}
+            <div><span className="t-label">Cajero POS</span><small>{arqueo.cajero}</small></div>
+          </div>
+          {Math.abs(n(arqueo.venta_sistema) - (n(arqueo.sis_efectivo) + n(arqueo.sis_tarjeta) + n(arqueo.sis_yape) + n(arqueo.sis_plin))) > 0.5 &&
+            <p className="nota" style={{ color: 'var(--rojo)' }}>⚠️ La suma de los medios de pago no cuadra con la venta del sistema.</p>}
         </div>)}
 
         {/* --- Adicionales: facturas de gastos --- */}
