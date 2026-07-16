@@ -9,7 +9,7 @@ export default defineConfig({
     port: 5174,
   },
   build: {
-    outDir: '../docs',           // GitHub Pages sirve desde /docs en main
+    outDir: 'dist',
     emptyOutDir: true,
   },
 })
