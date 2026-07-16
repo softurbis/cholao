@@ -24,7 +24,7 @@ Estado a la fecha. ✅ hecho · 🔨 en curso · ⬜ pendiente
 
 ## FASE 2 — Completar cargas de datos
 4. ✅ **Caja diaria formato viejo** — 2025 + ene–mar 2026 (811 turnos, may-2025→jul-2026)
-5. ⬜ **Ventas ene–jun 2026** — `Reporte de ventas.xlsx` (3.74 MB, subcarpeta 2026)
+5. ✅ **Ventas ene–may 2026** — 9,514 tickets (falta solo junio; export llegaba hasta 17-may)
 6. ⬜ **Ventas por producto** — subidas semanales (para el dashboard de productos)
 
 ## FASE 3 — Paneles operativos (captura)
