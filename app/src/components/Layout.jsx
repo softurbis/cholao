@@ -9,6 +9,7 @@ const NAV = [
   { key: 'compras', to: '/compras', label: 'Compras', icon: '🛒' },
   { key: 'asistencia', to: '/asistencia', label: 'Asistencia · Planilla', icon: '🕒' },
   { key: 'ventas', to: '/ventas', label: 'Ventas', icon: '💵' },
+  { key: 'productos', to: '/productos', label: 'Productos', icon: '🍧' },
   { key: 'gastos', to: '/gastos', label: 'Gastos', icon: '📉' },
   { key: 'sedes', to: '/sedes', label: 'Sedes', icon: '🏪' },
   { key: 'personas', to: '/personas', label: 'Personas', icon: '👥' },

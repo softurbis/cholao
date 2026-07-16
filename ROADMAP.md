@@ -19,7 +19,7 @@ Estado a la fecha. ✅ hecho · 🔨 en curso · ⬜ pendiente
 
 ## FASE 1 — Ver lo que ya está cargado
 1. ✅ **Panel Caja Diaria** — ver cuadres por turno (venta, pagos, gastos, descuentos, stock)
-2. ⬜ **Dashboard de productos** — más vendidos, venta por sede, monto por producto/sede
+2. ✅ **Dashboard de productos** — más vendidos, venta por sede, monto por producto/sede
 3. ⬜ **Comparativo de ventas** — venta contada vs venta sistema (cajero) vs venta real (POS)
 
 ## FASE 2 — Completar cargas de datos
