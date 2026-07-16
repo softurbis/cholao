@@ -12,16 +12,20 @@ const paths = args.filter((a) => a !== '--dry')
 
 const sedeDe = (nombre) => /miraflores/i.test(nombre) ? 'Miraflores' : /amazonas/i.test(nombre) ? 'Amazonas' : null
 const norm = (s) => String(s || '').trim().toLowerCase()
+// Limpia etiquetas: quita emojis/símbolos y acentos, deja solo letras y espacios
+const clean = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()
 
-// Encuentra el valor del cuadre buscando una etiqueta en la col F (idx 5), valor en col G (idx 6)
-function cuadreVal(rows, etiqueta) {
+// Encuentra el valor del cuadre buscando una etiqueta (limpia) en la col F (idx 5), valor en col G (idx 6)
+function cuadreVal(rows, etiqueta, exacto = false) {
   for (const r of rows) {
-    if (norm(r[5]).startsWith(etiqueta)) return { monto: money(r[6]), estado: String(r[7] || '').trim() }
+    const c = clean(r[5])
+    if (exacto ? c === etiqueta : c.startsWith(etiqueta)) return { monto: money(r[6]), estado: String(r[7] || '').trim() }
   }
   return { monto: null, estado: '' }
 }
 function cuadreTexto(rows, etiqueta) {
-  for (const r of rows) if (norm(r[5]).startsWith(etiqueta)) return String(r[6] || '').trim()
+  for (const r of rows) if (clean(r[5]).startsWith(etiqueta)) return String(r[6] || '').trim()
   return null
 }
 
@@ -31,16 +35,17 @@ function parseHojaTurno(nombreHoja, rows) {
   const fecha = `${m[3]}-${m[2]}-${m[1]}`
   const turno = /tarde/i.test(m[4]) ? 'tarde' : /noche/i.test(m[4]) ? 'noche' : 'manana'
 
-  // Cajero (fila con "Cajero:")
+  // Cajero (fila con "Cajero:" o "Responsable:")
   let cajero = null
-  for (const r of rows) if (norm(r[0]).startsWith('cajero')) { cajero = String(r[2] || '').trim() || null; break }
+  for (const r of rows) if (clean(r[0]).startsWith('cajero') || clean(r[0]).startsWith('responsable')) { cajero = String(r[2] || '').trim() || null; break }
 
   // Cuadre de pagos (lado derecho)
   const tarjeta = cuadreVal(rows, 'tarjeta').monto
   const plin = cuadreVal(rows, 'plin').monto
   const yapeQr = cuadreVal(rows, 'yape qr').monto
   const yapeFotos = cuadreVal(rows, 'yape fotos').monto
-  const yapeTotal = cuadreVal(rows, 'yape total').monto
+  // "YAPE TOTAL" (formato nuevo) o un solo "Yape" (formato Abril con emojis)
+  const yapeTotal = cuadreVal(rows, 'yape total').monto ?? cuadreVal(rows, 'yape', true).monto
   const efectivo = cuadreVal(rows, 'efectivo').monto
   const ventaTotal = cuadreVal(rows, 'total venta').monto
   const ventaSistema = cuadreVal(rows, 'venta del sistema').monto
@@ -52,9 +57,9 @@ function parseHojaTurno(nombreHoja, rows) {
   const clima = cuadreTexto(rows, 'clima')
 
   // Secciones de la izquierda: ubicar encabezados
-  const idxGastos = rows.findIndex((r) => norm(r[0]).startsWith('egresos') && /gast/i.test(r[0] + r[1]))
-  const idxDesc = rows.findIndex((r) => norm(r[0]).startsWith('egresos') && /descue/i.test(r[0] + r[1]))
-  const idxStock = rows.findIndex((r) => norm(r[0]).startsWith('control de stock'))
+  const idxGastos = rows.findIndex((r) => /egresos/.test(clean(r[0])) && /gast/.test(clean(r[0]) + clean(r[1])))
+  const idxDesc = rows.findIndex((r) => /egresos/.test(clean(r[0])) && /descue/.test(clean(r[0]) + clean(r[1])))
+  const idxStock = rows.findIndex((r) => clean(r[0]).startsWith('control de stock'))
 
   // Gastos tienda: filas numeradas entre idxGastos y idxDesc
   const gastos = []
