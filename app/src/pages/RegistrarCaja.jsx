@@ -27,7 +27,8 @@ export default function RegistrarCaja() {
   const [gastos, setGastos] = useState([])
   const [descs, setDescs] = useState([])
   const [stock, setStock] = useState([])
-  const [movs, setMovs] = useState([])   // adiciones / mermas del turno
+  const [movs, setMovs] = useState([])           // adiciones / mermas del turno
+  const [pendientes, setPendientes] = useState([]) // traslados que otra sede me envió
 
   // apertura
   const [ap, setAp] = useState({ sede_id: '', fecha: fmt(new Date()), turno: 'manana', cajero: '', base_inicial: '' })
@@ -61,7 +62,7 @@ export default function RegistrarCaja() {
     // ¿hay un turno abierto?
     const { data: ab } = await supabase.from('caja_turno').select('*, sede:sedes(nombre)')
       .eq('estado', 'abierto').order('abierto_en', { ascending: false }).limit(1)
-    if (ab?.[0]) { setTurno(ab[0]); await cargarHijos(ab[0].id) } else setTurno(null)
+    if (ab?.[0]) { setTurno(ab[0]); await cargarHijos(ab[0].id); await cargarPendientes(ab[0].sede_id) } else setTurno(null)
     setCargando(false)
   }
   async function cargarHijos(tid) {
@@ -74,15 +75,23 @@ export default function RegistrarCaja() {
     setGastos(g || []); setDescs(d || []); setStock(st || []); setMovs(mv || [])
   }
 
-  // Movimiento de stock durante el turno: llegó más producto (adición) o se malogró (merma)
+  // Movimiento de stock durante el turno: adición, merma o salida (traslado a otra sede)
   async function addMov(m) {
+    const esTraslado = m.tipo === 'salida' && m.sede_destino_id
     const cant = m.tipo === 'adicion' ? Math.abs(n(m.cantidad)) : -Math.abs(n(m.cantidad))
     const { data, error } = await supabase.from('caja_stock_mov').insert({
       turno_id: turno.id, producto: m.producto, tipo: m.tipo,
       cantidad: cant, motivo: m.motivo || null, registrado_por: perfil?.id || null,
+      sede_origen_id: turno.sede_id,
+      sede_destino_id: m.sede_destino_id || null,
+      aceptado: esTraslado ? false : null,   // queda pendiente hasta que el destino lo reciba
     }).select().single()
     if (error) { aviso('err', error.message); return }
     setMovs((p) => [...p, data])
+    if (esTraslado) {
+      const dest = sedes.find((s) => s.id === m.sede_destino_id)?.nombre
+      aviso('ok', `📤 Enviado a ${dest}: ${Math.abs(n(m.cantidad))} ${m.producto}. Queda pendiente hasta que lo reciban.`)
+    }
     // actualiza el acumulado del producto
     const fila = stock.find((s) => s.producto === m.producto)
     if (fila) {
@@ -93,6 +102,42 @@ export default function RegistrarCaja() {
     }
     aviso('ok', `📦 ${m.tipo === 'adicion' ? 'Adición' : 'Merma'} registrada: ${m.producto}`)
   }
+  // Traslados que otra sede me envió y aún no recibo
+  async function cargarPendientes(sedeId) {
+    if (!sedeId) return setPendientes([])
+    const { data } = await supabase.from('caja_stock_mov')
+      .select('*, origen:sedes!caja_stock_mov_sede_origen_id_fkey(nombre)')
+      .eq('sede_destino_id', sedeId).eq('aceptado', false)
+    setPendientes(data || [])
+  }
+
+  // Acepto el traslado -> me entra como adición en mi turno
+  async function aceptarTraslado(t) {
+    const cant = Math.abs(n(t.cantidad))
+    const { data, error } = await supabase.from('caja_stock_mov').insert({
+      turno_id: turno.id, producto: t.producto, tipo: 'adicion', cantidad: cant,
+      motivo: `Traslado de ${t.origen?.nombre || 'otra sede'}`,
+      registrado_por: perfil?.id || null, mov_origen_id: t.id, sede_origen_id: t.sede_origen_id,
+    }).select().single()
+    if (error) { aviso('err', error.message); return }
+    await supabase.from('caja_stock_mov').update({ aceptado: true, aceptado_en: new Date().toISOString() }).eq('id', t.id)
+    setMovs((p) => [...p, data])
+    setPendientes((p) => p.filter((x) => x.id !== t.id))
+
+    // suma al stock del producto (si no lo tengo en la lista, lo agrego)
+    const fila = stock.find((s) => s.producto === t.producto)
+    if (fila) {
+      const nuevo = n(fila.adicion) + cant
+      await supabase.from('caja_stock').update({ adicion: nuevo }).eq('id', fila.id)
+      setStock((p) => p.map((s) => s.id === fila.id ? { ...s, adicion: nuevo } : s))
+    } else {
+      const { data: nf } = await supabase.from('caja_stock')
+        .insert({ turno_id: turno.id, producto: t.producto, inicio: 0, adicion: cant, merma: 0, salida: 0 }).select().single()
+      if (nf) setStock((p) => [...p, nf])
+    }
+    aviso('ok', `📥 Recibido: ${cant} ${t.producto}`)
+  }
+
   async function delMov(mv) {
     await supabase.from('caja_stock_mov').delete().eq('id', mv.id)
     setMovs((p) => p.filter((x) => x.id !== mv.id))
@@ -423,10 +468,29 @@ export default function RegistrarCaja() {
             filas={descs.map((d) => ({ id: d.id, a: d.persona, b: d.monto, c: d.tipo }))}
             onDel={(id) => delFila('caja_descuentos', id, setDescs)} />
         </div>
+        {/* Traslados que me enviaron de otra sede */}
+        {pendientes.length > 0 && (
+          <div className="seccion" style={{ marginTop: 18, borderLeft: '4px solid var(--azul)' }}>
+            <h2 className="sub-titulo">📥 Te enviaron de otra sede <span className="nota">— confirma que llegó</span></h2>
+            <table className="tabla">
+              <tbody>
+                {pendientes.map((t) => (
+                  <tr key={t.id}>
+                    <td><strong>{Math.abs(t.cantidad)} {t.producto}</strong></td>
+                    <td className="nota">de {t.origen?.nombre || 'otra sede'}</td>
+                    <td className="nota">{new Date(t.created_at).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td><button className="btn-mini" style={{ background: 'var(--azul)', color: '#fff', borderColor: 'var(--azul)' }} onClick={() => aceptarTraslado(t)}>✓ Recibí</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* Movimientos de stock durante el turno */}
         <div className="seccion" style={{ marginTop: 18 }}>
-          <h2 className="sub-titulo">📦 Movimientos de stock <span className="nota">— llegó más producto o se malogró algo</span></h2>
-          <MovStock productos={stock.map((s) => s.producto)} onAdd={addMov} />
+          <h2 className="sub-titulo">📦 Movimientos de stock <span className="nota">— llegó más, se malogró o se traslada</span></h2>
+          <MovStock productos={stock.map((s) => s.producto)} onAdd={addMov} sedes={sedes.filter((s) => s.id !== turno.sede_id)} />
           {movs.length > 0 && (
             <table className="tabla" style={{ marginTop: 10 }}>
               <tbody>
@@ -440,8 +504,13 @@ export default function RegistrarCaja() {
                     </td>
                     <td><strong>{m.producto}</strong></td>
                     <td>{m.cantidad > 0 ? '+' : ''}{m.cantidad}</td>
-                    <td className="nota">{m.motivo || '—'}</td>
-                    <td>{m.tipo !== 'ajuste_apertura' && <button className="btn-mini btn-peligro" onClick={() => delMov(m)}>✕</button>}</td>
+                    <td className="nota">
+                      {m.motivo || '—'}
+                      {m.sede_destino_id && <> → <b>{sedes.find((s) => s.id === m.sede_destino_id)?.nombre}</b>
+                        {m.aceptado === false && <span className="chip chip-off" style={{ marginLeft: 6 }}>pendiente</span>}
+                        {m.aceptado === true && <span className="chip chip-ok" style={{ marginLeft: 6 }}>recibido</span>}</>}
+                    </td>
+                    <td>{m.tipo !== 'ajuste_apertura' && m.aceptado !== true && <button className="btn-mini btn-peligro" onClick={() => delMov(m)}>✕</button>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -593,21 +662,28 @@ export default function RegistrarCaja() {
   )
 }
 
-// Alta de movimiento de stock: adición (llegó más) o merma (se malogró)
-function MovStock({ productos, onAdd }) {
-  const [m, setM] = useState({ producto: '', tipo: 'adicion', cantidad: '', motivo: '' })
-  const MOTIVOS = { adicion: ['Llegó pedido', 'Traslado de otra sede', 'Producción nueva', 'Otro'], merma: ['Se malogró', 'Se cayó / rompió', 'Vencido', 'Cortesía / degustación', 'Otro'], salida: ['Traslado a otra sede', 'Consumo interno', 'Otro'] }
+// Alta de movimiento de stock: adición (llegó más), merma (se malogró) o salida (traslado)
+function MovStock({ productos, onAdd, sedes = [] }) {
+  const vacio = { producto: '', tipo: 'adicion', cantidad: '', motivo: '', sede_destino_id: '' }
+  const [m, setM] = useState(vacio)
+  const MOTIVOS = {
+    adicion: ['Llegó pedido', 'Producción nueva', 'Otro'],
+    merma: ['Se malogró', 'Se cayó / rompió', 'Vencido', 'Cortesía / degustación', 'Otro'],
+    salida: ['Traslado a otra sede', 'Consumo interno', 'Otro'],
+  }
+  const esTraslado = m.tipo === 'salida' && m.motivo === 'Traslado a otra sede'
   function agregar() {
     if (!m.producto || !Number(m.cantidad)) return
-    onAdd(m); setM({ producto: '', tipo: m.tipo, cantidad: '', motivo: '' })
+    if (esTraslado && !m.sede_destino_id) return alert('Elige a qué sede se traslada')
+    onAdd(m); setM({ ...vacio, tipo: m.tipo })
   }
-  return (
+  return (<>
     <div className="fila-mini">
       <select value={m.producto} onChange={(e) => setM({ ...m, producto: e.target.value })}>
         <option value="">Producto…</option>
         {productos.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
-      <select value={m.tipo} onChange={(e) => setM({ ...m, tipo: e.target.value, motivo: '' })} style={{ maxWidth: 120 }}>
+      <select value={m.tipo} onChange={(e) => setM({ ...m, tipo: e.target.value, motivo: '', sede_destino_id: '' })} style={{ maxWidth: 120 }}>
         <option value="adicion">+ Adición</option>
         <option value="merma">− Merma</option>
         <option value="salida">− Salida</option>
@@ -617,9 +693,16 @@ function MovStock({ productos, onAdd }) {
         <option value="">Motivo…</option>
         {(MOTIVOS[m.tipo] || []).map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
+      {esTraslado && (
+        <select value={m.sede_destino_id} onChange={(e) => setM({ ...m, sede_destino_id: e.target.value })} style={{ maxWidth: 150, borderColor: 'var(--azul)' }}>
+          <option value="">¿A qué sede? *</option>
+          {sedes.map((s) => <option key={s.id} value={s.id}>→ {s.nombre}</option>)}
+        </select>
+      )}
       <button className="btn-mini" onClick={agregar}>+</button>
     </div>
-  )
+    {esTraslado && <p className="nota">📤 Queda pendiente hasta que la otra sede confirme que lo recibió.</p>}
+  </>)
 }
 
 // Recuadro de documento obligatorio: muestra ✓ cuando ya se cargó
