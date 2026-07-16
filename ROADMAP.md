@@ -23,7 +23,7 @@ Estado a la fecha. ✅ hecho · 🔨 en curso · ⬜ pendiente
 3. ⬜ **Comparativo de ventas** — venta contada vs venta sistema (cajero) vs venta real (POS)
 
 ## FASE 2 — Completar cargas de datos
-4. ⬜ **Caja diaria formato viejo** — 2025 + ene–mar 2026 (25 archivos .xlsm)
+4. ✅ **Caja diaria formato viejo** — 2025 + ene–mar 2026 (811 turnos, may-2025→jul-2026)
 5. ⬜ **Ventas ene–jun 2026** — `Reporte de ventas.xlsx` (3.74 MB, subcarpeta 2026)
 6. ⬜ **Ventas por producto** — subidas semanales (para el dashboard de productos)
 
