@@ -92,6 +92,11 @@ export default function RegistrarCaja() {
     () => prodPdf ? cruzarConStock(prodPdf.items, stock) : stock.map((s) => ({ ...s, vendido_sistema: null })),
     [prodPdf, stock])
 
+  // Los 3 documentos obligatorios para poder cerrar
+  const tieneVoucher = adjuntos.some((a) => a.tipo === 'voucher')
+  const faltantes = [!arqueo && 'arqueo', !prodPdf && 'productos vendidos', !tieneVoucher && 'foto del POS'].filter(Boolean)
+  const listo = faltantes.length === 0
+
   // ---------- FASE 1: APERTURA ----------
   async function abrirCaja() {
     if (!ap.sede_id || !ap.cajero) { aviso('err', 'Falta sede o cajero'); return }
@@ -203,7 +208,7 @@ export default function RegistrarCaja() {
   const descuadre = faltantePos - explicado
 
   async function cerrarTurno() {
-    if (!arqueo) { aviso('err', 'Sube el PDF de arqueo del POS para cerrar'); return }
+    if (!listo) { aviso('err', 'Faltan documentos obligatorios: ' + faltantes.join(', ')); return }
     setOcupado(true)
     // sube todos los adjuntos (arqueo, 2º reporte, voucher foto, facturas)
     let primeroArqueo = null
@@ -310,11 +315,25 @@ export default function RegistrarCaja() {
         <h1>Cierre de turno</h1>
         <p className="pagina-sub">{turno.cajero} · {turno.fecha} · {turno.turno === 'manana' ? 'Mañana' : 'Tarde'}</p>
 
+        {/* --- 3 documentos obligatorios --- */}
         <div className="seccion" style={{ marginBottom: 16 }}>
-          <h2 className="sub-titulo">📄 Arqueo del POS (PDF)</h2>
-          <p className="nota">Sube el PDF y se jalan los montos solos. <b>Puedes corregirlos si algo no cuadra.</b></p>
-          <input type="file" accept="application/pdf" onChange={(e) => e.target.files[0] && subirArqueo(e.target.files[0])} />
-          {arqueo && (<>
+          <h2 className="sub-titulo">📄 Documentos del turno <span className="nota">— los 3 son obligatorios</span></h2>
+          <div className="adj-grid">
+            <Slot n="1" label="Arqueo de caja (PDF)" ok={!!arqueo} accept="application/pdf"
+              onFile={subirArqueo} hint="Jala la venta del sistema y los pagos" />
+            <Slot n="2" label="Productos vendidos (PDF)" ok={!!prodPdf} accept="application/pdf"
+              onFile={subirProductos} hint="Jala los productos para comparar tu stock" />
+            <Slot n="3" label="Foto del voucher POS" ok={tieneVoucher} accept="image/*" capture
+              onFile={(f) => addAdjunto('voucher', f)} hint="Toma la foto con la cámara" />
+          </div>
+          {!listo && <p className="nota" style={{ color: 'var(--rojo)', marginTop: 10 }}>⚠️ Faltan documentos: {faltantes.join(' · ')}</p>}
+        </div>
+
+        {/* --- Montos leídos (editables) --- */}
+        {arqueo && (
+        <div className="seccion" style={{ marginBottom: 16 }}>
+          <h2 className="sub-titulo">💰 Montos leídos del arqueo <span className="nota">— puedes corregirlos</span></h2>
+          <>
             <div className="arqueo-box">
               <label><span className="t-label">Venta del sistema</span><input type="number" className="in-arq" value={arqueo.venta_sistema ?? ''} onChange={(e) => setArq('venta_sistema', e.target.value)} /></label>
               <label><span className="t-label">Efectivo <small>({arqueo.sis_efectivo_op} op)</small></span><input type="number" className="in-arq" value={arqueo.sis_efectivo ?? ''} onChange={(e) => setArq('sis_efectivo', e.target.value)} /></label>
@@ -325,16 +344,15 @@ export default function RegistrarCaja() {
             </div>
             {Math.abs(n(arqueo.venta_sistema) - (n(arqueo.sis_efectivo) + n(arqueo.sis_tarjeta) + n(arqueo.sis_yape) + n(arqueo.sis_plin))) > 0.5 &&
               <p className="nota" style={{ color: 'var(--rojo)' }}>⚠️ La suma de los medios de pago no cuadra con la venta del sistema.</p>}
-          </>)}
-        </div>
+          </>
+        </div>)}
 
+        {/* --- Adicionales: facturas de gastos --- */}
         <div className="seccion" style={{ marginBottom: 16 }}>
-          <h2 className="sub-titulo">📎 Otros adjuntos del día</h2>
-          <div className="adj-grid">
-            <label className="campo"><span>Productos vendidos (PDF)</span><input type="file" accept="application/pdf" onChange={(e) => e.target.files[0] && subirProductos(e.target.files[0])} /></label>
-            <label className="campo"><span>Voucher del POS (foto)</span><input type="file" accept="image/*" capture="environment" onChange={(e) => addAdjunto('voucher', e.target.files[0])} /></label>
-            <label className="campo"><span>Facturas de gastos (opcional)</span><input type="file" accept="image/*,application/pdf" multiple onChange={(e) => [...e.target.files].forEach((f) => addAdjunto('factura', f))} /></label>
-          </div>
+          <h2 className="sub-titulo">📎 Adicionales <span className="nota">— opcional</span></h2>
+          <label className="campo"><span>Facturas / boletas de los gastos</span>
+            <input type="file" accept="image/*,application/pdf" multiple onChange={(e) => [...e.target.files].forEach((f) => addAdjunto('factura', f))} />
+          </label>
           {adjuntos.length > 0 && (
             <div className="sugerencias" style={{ marginTop: 10 }}>
               {adjuntos.map((a, i) => (
@@ -398,12 +416,24 @@ export default function RegistrarCaja() {
 
         <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn-mini" onClick={() => setFase('turno')}>⬅️ Volver</button>
-          <button className="btn-guardar" onClick={cerrarTurno} disabled={ocupado || !arqueo}>{ocupado ? 'Cerrando…' : '🔒 Cerrar turno'}</button>
+          <button className="btn-guardar" onClick={cerrarTurno} disabled={ocupado || !listo} title={listo ? '' : 'Faltan: ' + faltantes.join(', ')}>{ocupado ? 'Cerrando…' : '🔒 Cerrar turno'}</button>
           <button className="btn-mini" onClick={() => window.print()}>🖨️ PDF / Captura</button>
           <button className="btn-wsp" onClick={enviarWsp} disabled={!arqueo}>💬 Enviar por WhatsApp</button>
         </div>
       </>)}
     </div>
+  )
+}
+
+// Recuadro de documento obligatorio: muestra ✓ cuando ya se cargó
+function Slot({ n, label, ok, accept, capture, onFile, hint }) {
+  return (
+    <label className={ok ? 'slot ok' : 'slot'}>
+      <div className="slot-cab"><span className="slot-n">{ok ? '✓' : n}</span><b>{label}</b></div>
+      <span className="nota">{ok ? 'Listo ✓ — puedes reemplazarlo' : hint}</span>
+      <input type="file" accept={accept} {...(capture ? { capture: 'environment' } : {})}
+        onChange={(e) => e.target.files[0] && onFile(e.target.files[0])} />
+    </label>
   )
 }
 

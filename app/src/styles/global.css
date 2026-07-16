@@ -255,6 +255,21 @@ body {
 .in-arq:focus { outline: 2px solid var(--rojo); border-color: transparent; }
 .adj-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .adj-grid input[type=file] { font-size: 12.5px; }
+
+/* Recuadros de documentos obligatorios */
+.slot {
+  display: grid; gap: 6px; padding: 13px; border: 2px dashed var(--linea); border-radius: 10px;
+  background: #fcfcfd; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.slot:hover { border-color: var(--rojo); }
+.slot.ok { border-style: solid; border-color: #1a7f37; background: #f4fbf6; }
+.slot-cab { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.slot-n {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--gris); color: #fff; font-size: 12px; font-weight: 700; flex: none;
+}
+.slot.ok .slot-n { background: #1a7f37; }
+.slot input[type=file] { font-size: 12px; }
 .btn-wsp {
   padding: 8px 16px; border: 1px solid #25d366; border-radius: 8px; background: #25d366;
   color: #fff; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13.5px;
