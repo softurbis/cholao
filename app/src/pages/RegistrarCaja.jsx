@@ -136,6 +136,21 @@ export default function RegistrarCaja() {
     setter((p) => p.filter((x) => x.id !== id))
   }
 
+  // Elimina el turno completo (gastos, adelantos, stock y archivos). Útil para pruebas.
+  async function eliminarTurno() {
+    if (!confirm('¿Eliminar este turno con TODO lo registrado (gastos, adelantos, stock y archivos)?\nNo se puede deshacer.')) return
+    setOcupado(true)
+    const { data: adj } = await supabase.from('caja_adjuntos').select('archivo').eq('turno_id', turno.id)
+    if (adj?.length) await supabase.storage.from('arqueos').remove(adj.map((a) => a.archivo))
+    const { error } = await supabase.from('caja_turno').delete().eq('id', turno.id)   // hijos por cascade
+    setOcupado(false)
+    if (error) { aviso('err', error.message); return }
+    aviso('ok', '🗑️ Turno eliminado')
+    setTurno(null); setArqueo(null); setProdPdf(null); setAdjuntos([]); setFase('turno')
+    setCi({ clima: '', observaciones: '', efectivo_contado: '' })
+    cargarTodo()
+  }
+
   // ---------- FASE 3: CIERRE ----------
   // El PDF de arqueo se lee y llena los montos (que quedan editables)
   async function subirArqueo(file) {
@@ -307,7 +322,10 @@ export default function RegistrarCaja() {
             filas={descs.map((d) => ({ id: d.id, a: d.persona, b: d.monto, c: d.tipo }))}
             onDel={(id) => delFila('caja_descuentos', id, setDescs)} />
         </div>
-        <div style={{ marginTop: 18 }}><button className="btn-guardar" onClick={() => setFase('cierre')}>➡️ Ir al cierre</button></div>
+        <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn-guardar" onClick={() => setFase('cierre')}>➡️ Ir al cierre</button>
+          <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado}>🗑️ Eliminar turno</button>
+        </div>
       </>)}
 
       {/* ---------------- FASE 3 ---------------- */}
@@ -419,6 +437,7 @@ export default function RegistrarCaja() {
           <button className="btn-guardar" onClick={cerrarTurno} disabled={ocupado || !listo} title={listo ? '' : 'Faltan: ' + faltantes.join(', ')}>{ocupado ? 'Cerrando…' : '🔒 Cerrar turno'}</button>
           <button className="btn-mini" onClick={() => window.print()}>🖨️ PDF / Captura</button>
           <button className="btn-wsp" onClick={enviarWsp} disabled={!arqueo}>💬 Enviar por WhatsApp</button>
+          <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado} style={{ marginLeft: 'auto' }}>🗑️ Eliminar turno</button>
         </div>
       </>)}
     </div>

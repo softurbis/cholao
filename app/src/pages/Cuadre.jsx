@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/fetchAll'
+import { useAuth } from '../context/AuthContext'
 
 const soles = (n) => n == null ? '—' : 'S/ ' + Number(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export default function Cuadre() {
+  const { perfil } = useAuth()
+  const esAdmin = !perfil || perfil.rol === 'superadmin' || perfil.rol === 'gerente'
   const [turnos, setTurnos] = useState([])
   const [sedes, setSedes] = useState([])
   const [gastosCaja, setGastosCaja] = useState([])   // gastos de tienda (con fecha/sede del turno)
@@ -54,6 +57,17 @@ export default function Cuadre() {
     const m = {}; for (const x of descF) { const k = (x.persona || '—').toUpperCase().trim(); m[k] = (m[k] || 0) + Number(x.monto || 0) }
     return Object.entries(m).sort((a, b) => b[1] - a[1])
   }, [descF])
+
+  // Elimina un turno completo (para limpiar pruebas). Solo superadmin/gerente.
+  async function eliminarTurno(t, e) {
+    e.stopPropagation()
+    if (!confirm(`¿Eliminar el turno del ${t.fecha} (${t.turno}) de ${t.sede?.nombre}?\nSe borra todo: gastos, adelantos, stock y archivos.`)) return
+    const { data: adj } = await supabase.from('caja_adjuntos').select('archivo').eq('turno_id', t.id)
+    if (adj?.length) await supabase.storage.from('arqueos').remove(adj.map((a) => a.archivo))
+    const { error } = await supabase.from('caja_turno').delete().eq('id', t.id)
+    if (error) { alert('Error: ' + error.message); return }
+    setTurnos((p) => p.filter((x) => x.id !== t.id))
+  }
 
   async function toggle(t) {
     if (abierto === t.id) { setAbierto(null); return }
@@ -124,7 +138,8 @@ export default function Cuadre() {
           <thead><tr><th>Fecha</th><th>Turno</th><th>Sede</th><th>Cajero</th><th>Venta</th><th>Sistema</th><th>Déf/Sobra</th><th></th></tr></thead>
           <tbody>
             {filtrados.map((t) => (
-              <FragmentRow key={t.id} t={t} abierto={abierto === t.id} onToggle={() => toggle(t)} det={detalle[t.id]} />
+              <FragmentRow key={t.id} t={t} abierto={abierto === t.id} onToggle={() => toggle(t)} det={detalle[t.id]}
+                onEliminar={esAdmin ? (e) => eliminarTurno(t, e) : null} />
             ))}
             {filtrados.length === 0 && <tr><td colSpan="8" className="nota">Sin turnos para el filtro.</td></tr>}
           </tbody>
@@ -134,7 +149,7 @@ export default function Cuadre() {
   )
 }
 
-function FragmentRow({ t, abierto, onToggle, det }) {
+function FragmentRow({ t, abierto, onToggle, det, onEliminar }) {
   return (
     <>
       <tr onClick={onToggle} style={{ cursor: 'pointer' }}>
@@ -145,7 +160,10 @@ function FragmentRow({ t, abierto, onToggle, det }) {
         <td>{soles(t.venta_total)}</td>
         <td>{soles(t.venta_sistema)}</td>
         <td style={{ color: Number(t.deficit_sobra) < 0 ? 'var(--rojo)' : '#1a7f37' }}>{soles(t.deficit_sobra)}</td>
-        <td>{abierto ? '▲' : '▼'}</td>
+        <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {abierto ? '▲' : '▼'}
+          {onEliminar && <button className="btn-mini btn-peligro" title="Eliminar turno" onClick={onEliminar}>🗑️</button>}
+        </td>
       </tr>
       {abierto && (
         <tr><td colSpan="8" style={{ background: '#fafafa' }}>
