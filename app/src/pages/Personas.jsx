@@ -69,7 +69,7 @@ export default function Personas() {
       apellidos: form.apellidos.trim().toUpperCase() || null,
       dni: form.dni.trim() || null,
       telefono: form.telefono.trim() || null,
-      cargo: form.cargo.trim() || null,
+      cargo: form.cargo.trim().toUpperCase() || null,
       sede_id: form.sede_id || null,
       sueldo_base: n(form.sueldo_base),
     })
@@ -303,7 +303,7 @@ function FilaPersona({
           placeholder="Teléfono" style={{ maxWidth: 110 }} /></td>
         <td className="acciones">
           <button className="btn-mini btn-ok" onClick={() => onGuardar({
-            dni: ed.dni.trim() || null, cargo: ed.cargo.trim() || null,
+            dni: ed.dni.trim() || null, cargo: ed.cargo.trim().toUpperCase() || null,
             sede_id: ed.sede_id || null, sueldo_base: n(ed.sueldo_base),
             telefono: ed.telefono.trim() || null,
           })}>Guardar</button>

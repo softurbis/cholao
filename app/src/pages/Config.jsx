@@ -37,7 +37,7 @@ export default function Config() {
 
   async function addProd() {
     if (!nuevo.nombre.trim()) return
-    await supabase.from('productos_stock').insert({ nombre: nuevo.nombre.trim(), stock_minimo: Number(nuevo.stock_minimo) || 0, orden: prods.length + 1 })
+    await supabase.from('productos_stock').insert({ nombre: nuevo.nombre.toUpperCase().replace(/\s+/g, ' ').trim(), stock_minimo: Number(nuevo.stock_minimo) || 0, orden: prods.length + 1 })
     setNuevo({ nombre: '', stock_minimo: '' }); cargar()
   }
   async function delProd(id) { if (confirm('¿Quitar producto?')) { await supabase.from('productos_stock').delete().eq('id', id); cargar() } }

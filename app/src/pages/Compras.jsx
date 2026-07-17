@@ -81,10 +81,15 @@ export default function Compras() {
   }, [])
 
   async function crearEnCatalogo(tabla, setCat) {
-    const nombre = prompt(`Nombre del nuevo ${tabla === 'proveedores' ? 'proveedor' : 'producto'}:`)?.trim()
+    // MAYÚSCULA + espacios colapsados, como el resto de catálogos. Si no, cada
+    // quien lo escribe distinto y se vuelve a llenar de "Plaza  Vea" / "plaza vea".
+    const nombre = prompt(`Nombre del nuevo ${tabla === 'proveedores' ? 'proveedor' : 'producto'}:`)
+      ?.toUpperCase().replace(/\s+/g, ' ').trim()
     if (!nombre) return null
-    await supabase.from(tabla).insert({ nombre })
-    setCat((prev) => [...prev, nombre].sort((a, b) => a.localeCompare(b)))
+    // Puede que ya exista (unique en nombre): no reventar, solo reusarlo.
+    const { error } = await supabase.from(tabla).insert({ nombre })
+    if (error && !/duplicate|unique/i.test(error.message)) { alert(error.message); return null }
+    setCat((prev) => prev.includes(nombre) ? prev : [...prev, nombre].sort((a, b) => a.localeCompare(b)))
     return nombre
   }
 
