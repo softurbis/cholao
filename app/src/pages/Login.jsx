@@ -94,11 +94,14 @@ export default function Login() {
           {/* inputMode="numeric" abre el teclado de números en el celular, que es
               donde se usa esto. type="password" para que no se lea por encima
               del hombro en el mostrador. */}
+          {/* inputMode="numeric" sugiere el teclado de números en el celular
+              (el caso de la cajera), pero SIN pattern: el superadmin y gerencia
+              entran con su contraseña normal, que lleva letras. El pattern
+              "[0-9]*" los bloqueaba con "usa un formato que coincida". */}
           <input
             ref={refPin}
             type="password"
             inputMode="numeric"
-            pattern="[0-9]*"
             autoComplete="current-password"
             placeholder="Clave o PIN"
             value={pin}
