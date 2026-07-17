@@ -29,8 +29,9 @@ export default function ProtectedRoute({ children, module }) {
     )
   }
 
-  if (module && !canAccess(perfil.rol, module, { puedeGastos: perfil.puede_gastos })) {
-    const inicio = rutaInicial(perfil.rol, { puedeGastos: perfil.puede_gastos })
+  const permisos = { puedeGastos: perfil.puede_gastos, puedeCompras: perfil.puede_compras }
+  if (module && !canAccess(perfil.rol, module, permisos)) {
+    const inicio = rutaInicial(perfil.rol, permisos)
     // Sin esta guarda hay bucle infinito: si tu ruta de inicio fuera justo la
     // que no puedes ver, te redirigirías a ti mismo para siempre.
     if (donde.pathname === inicio) {

@@ -52,11 +52,12 @@ export const ROLE_ACCESS = {
 
 // Sin rol no se accede a nada. El `|| []` es el fail-closed: un rol no mapeado
 // no ve nada, en vez de verlo todo.
-// `puedeGastos` (el permiso especial de Fernanda) abre el panel Pagos aunque su
-// rol —cajera— no lo tenga.
+// Los permisos especiales abren un módulo aunque el rol no lo tenga:
+//   puedeGastos (Fernanda) → Pagos · puedeCompras (Juan) → Compras
 export function canAccess(rol, key, opts = {}) {
   if (!rol) return false
   if (key === 'pagos' && opts.puedeGastos) return true
+  if (key === 'compras' && opts.puedeCompras) return true
   return (ROLE_ACCESS[rol] || []).includes(key)
 }
 
@@ -65,6 +66,7 @@ export function canAccess(rol, key, opts = {}) {
 export function rutaInicial(rol, opts = {}) {
   const lista = [...(ROLE_ACCESS[rol] || [])]
   if (opts.puedeGastos && !lista.includes('pagos')) lista.push('pagos')
+  if (opts.puedeCompras && !lista.includes('compras')) lista.push('compras')
   const primero = lista[0]
   return MODULOS.find((m) => m.key === primero)?.to || '/login'
 }
@@ -86,6 +88,12 @@ export function veTodo(perfil) {
 // Registra gastos de tienda y adelantos: los que ven todo + el permiso especial.
 export function puedeGastos(perfil) {
   return veTodo(perfil) || (!!perfil?.activo && !!perfil?.puede_gastos)
+}
+
+// Opera compras/almacén: super, admin, el rol histórico 'compras', o el permiso
+// especial (Juan, que es cajera pero registra compras).
+export function puedeCompras(perfil) {
+  return puedeEditar(perfil) || (!!perfil?.activo && (perfil.rol === 'compras' || !!perfil?.puede_compras))
 }
 
 // Solo el superusuario toca configuración, sedes y usuarios.

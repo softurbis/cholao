@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -15,27 +15,26 @@ export default function Lista() {
   const [listas, setListas] = useState([])
   const [items, setItems] = useState([])
   const [sedes, setSedes] = useState([])
+  const [productos, setProductos] = useState([])   // catálogo (con unidad)
   const [cargando, setCargando] = useState(true)
   const [msg, setMsg] = useState('')
 
   async function cargar() {
     setCargando(true)
     // El RLS filtra: cocina ve solo su sede; compras/admin/super ven todo.
-    const [{ data: l }, { data: it }, { data: s }] = await Promise.all([
+    const [{ data: l }, { data: it }, { data: s }, { data: p }] = await Promise.all([
       supabase.from('compras_listas').select('*').order('fecha', { ascending: false }),
       supabase.from('compras_lista_items').select('*').order('id'),
       supabase.from('sedes').select('id, nombre').eq('activo', true).order('nombre'),
+      supabase.from('productos').select('id, nombre, unidad').eq('activo', true).order('nombre'),
     ])
-    setListas(l || []); setItems(it || []); setSedes(s || [])
+    setListas(l || []); setItems(it || []); setSedes(s || []); setProductos(p || [])
     setCargando(false)
   }
   useEffect(() => { cargar() }, [])
 
   const nombreSede = (id) => sedes.find((s) => s.id === id)?.nombre || '—'
   const itemsDe = (listaId) => items.filter((x) => x.lista_id === listaId)
-  // Nombres ya usados antes → sugerencias para no escribir todo cada vez.
-  const sugerencias = useMemo(() =>
-    [...new Set(items.map((x) => x.nombre_libre).filter(Boolean))].sort(), [items])
 
   // ------- cocina: su lista abierta de hoy (la crea si no hay) -------
   async function miListaHoy() {
@@ -52,9 +51,10 @@ export default function Lista() {
   async function agregarItem(listaId, item) {
     const { data, error } = await supabase.from('compras_lista_items').insert({
       lista_id: listaId,
-      nombre_libre: item.nombre.trim().toUpperCase(),
+      producto_id: item.producto_id || null,       // liga al catálogo → consolidado exacto
+      nombre_libre: (item.nombre || '').trim().toUpperCase(),
       cantidad: item.cantidad ? Number(item.cantidad) : null,
-      unidad: item.unidad.trim() || null,
+      unidad: (item.unidad || '').trim() || null,
       comprado: false,
     }).select().single()
     if (error) { setMsg(error.message); return }
@@ -89,7 +89,7 @@ export default function Lista() {
         <p className="pagina-sub">Anota lo que hace falta comprar. Juan lo ve y lo consigue.</p>
         {msg && <div className="alerta">{msg}</div>}
         <EditorLista
-          lista={lista} items={lista ? itemsDe(lista.id) : []} sugerencias={sugerencias}
+          lista={lista} items={lista ? itemsDe(lista.id) : []} productos={productos}
           onCrear={miListaHoy} onAgregar={agregarItem} onQuitar={quitarItem} onToggle={toggleComprado}
         />
       </div>
@@ -136,30 +136,38 @@ export default function Lista() {
 }
 
 // ---------------------------------------------------------------------
-function EditorLista({ lista, items, sugerencias, onCrear, onAgregar, onQuitar, onToggle }) {
-  const [nuevo, setNuevo] = useState({ nombre: '', cantidad: '', unidad: '' })
+function EditorLista({ lista, items, productos, onCrear, onAgregar, onQuitar, onToggle }) {
+  const [prodId, setProdId] = useState('')
+  const [cantidad, setCantidad] = useState('')
+  const prod = productos.find((p) => p.id === prodId)
 
   async function añadir() {
-    if (!nuevo.nombre.trim()) return
+    if (!prod) return
     let l = lista
     if (!l) { l = await onCrear(); if (!l) return }
-    await onAgregar(l.id, nuevo)
-    setNuevo({ nombre: '', cantidad: '', unidad: '' })
+    // La unidad sale del catálogo, no se escribe: así el consolidado de Juan
+    // suma "PAPA (kg)" de todas las sedes sin ambigüedad.
+    await onAgregar(l.id, { producto_id: prod.id, nombre: prod.nombre, unidad: prod.unidad, cantidad })
+    setProdId(''); setCantidad('')
   }
 
   return (
     <div className="panel-detalle">
-      <div className="form-inline">
-        <input list="sugerencias-lista" placeholder="Qué falta (ej: MANGO)" value={nuevo.nombre}
-          onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
-          onKeyDown={(e) => e.key === 'Enter' && añadir()} style={{ minWidth: 180 }} />
-        <datalist id="sugerencias-lista">{sugerencias.map((s) => <option key={s} value={s} />)}</datalist>
-        <input type="number" placeholder="Cant." className="in-num" value={nuevo.cantidad}
-          onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} style={{ maxWidth: 90 }} />
-        <input placeholder="Unidad (kg, cajas…)" value={nuevo.unidad}
-          onChange={(e) => setNuevo({ ...nuevo, unidad: e.target.value })} style={{ maxWidth: 130 }} />
-        <button onClick={añadir}>+ Añadir</button>
-      </div>
+      {productos.length === 0
+        ? <p className="nota">El catálogo de productos está vacío. Juan lo arma en Compras → Catálogo; luego eliges de ahí.</p>
+        : (
+          <div className="form-inline">
+            <select value={prodId} onChange={(e) => setProdId(e.target.value)} style={{ minWidth: 200 }}>
+              <option value="">Elige un producto…</option>
+              {productos.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad})</option>)}
+            </select>
+            <input type="number" placeholder="Cant." className="in-num" value={cantidad}
+              onChange={(e) => setCantidad(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && añadir()} style={{ maxWidth: 90 }} />
+            {prod && <span className="nota" style={{ alignSelf: 'center' }}>{prod.unidad}</span>}
+            <button onClick={añadir} disabled={!prod}>+ Añadir</button>
+          </div>
+        )}
 
       {items.length === 0 ? <p className="nota">Todavía no anotaste nada.</p> : (
         <table className="tabla">

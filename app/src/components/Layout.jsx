@@ -13,7 +13,7 @@ export default function Layout({ children }) {
 
   // El Panel ya no es la excepción. Antes iba `n.key === 'dashboard' || …`, que
   // se lo mostraba a todos — incluida la cajera, que no debe ver el flujo.
-  const items = MODULOS.filter((n) => canAccess(rol, n.key, { puedeGastos: perfil?.puede_gastos }))
+  const items = MODULOS.filter((n) => canAccess(rol, n.key, { puedeGastos: perfil?.puede_gastos, puedeCompras: perfil?.puede_compras }))
 
   async function salir() {
     await signOut()

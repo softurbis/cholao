@@ -104,7 +104,8 @@ Deno.serve(async (req) => {
     const rol = String(body.rol ?? '')
     const sede_id = body.sede_id ? String(body.sede_id) : null
     const persona_id = body.persona_id ? String(body.persona_id) : null
-    const puede_gastos = body.puede_gastos === true   // permiso extra (Fernanda)
+    const puede_gastos = body.puede_gastos === true    // permiso extra (Fernanda)
+    const puede_compras = body.puede_compras === true  // permiso extra (Juan)
 
     if (!USUARIO_OK.test(usuario)) {
       return json({ error: 'Usuario inválido: entre 3 y 30 caracteres, solo minúsculas, números, punto, guion o guion bajo, y debe empezar con letra o número.' }, 400)
@@ -134,7 +135,7 @@ Deno.serve(async (req) => {
     }
 
     const { error: ePerfil } = await admin.from('perfiles').insert({
-      id: creado.user.id, usuario, nombre, rol, sede_id, persona_id, activo: true, puede_gastos,
+      id: creado.user.id, usuario, nombre, rol, sede_id, persona_id, activo: true, puede_gastos, puede_compras,
     })
     if (ePerfil) {
       // Sin perfil, el login existe pero no tiene rol: entraría a una app vacía

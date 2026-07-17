@@ -130,6 +130,11 @@ export default function Personas() {
     if (error) aviso('err', error.message)
     else { aviso('ok', pf.puede_gastos ? 'Permiso de gastos quitado' : '✅ Ahora puede registrar gastos y adelantos'); cargar() }
   }
+  async function toggleCompras(pf) {
+    const { error } = await supabase.from('perfiles').update({ puede_compras: !pf.puede_compras }).eq('id', pf.id)
+    if (error) aviso('err', error.message)
+    else { aviso('ok', pf.puede_compras ? 'Permiso de compras quitado' : '✅ Ahora puede registrar compras'); cargar() }
+  }
 
   async function borrarAcceso(pf) {
     if (!confirm(`¿Eliminar el login "${pf.usuario}" de ${pf.nombre}?\n\nSu historial (turnos, gastos) NO se borra.\nSi la persona solo se fue, es mejor DESACTIVAR.`)) return
@@ -205,6 +210,7 @@ export default function Personas() {
             onResetear={() => resetear(accesoDe[p.id])}
             onToggleAcceso={() => toggleAcceso(accesoDe[p.id])}
             onToggleGastos={() => toggleGastos(accesoDe[p.id])}
+            onToggleCompras={() => toggleCompras(accesoDe[p.id])}
             onBorrarAcceso={() => borrarAcceso(accesoDe[p.id])}
           />
         )
@@ -285,7 +291,7 @@ export default function Personas() {
 // ---------------------------------------------------------------------
 function FilaPersona({
   p, pf, sedes, nombreSede, editando, onEditar, onGuardar, onToggle,
-  onCrearLogin, onResetear, onToggleAcceso, onToggleGastos, onBorrarAcceso,
+  onCrearLogin, onResetear, onToggleAcceso, onToggleGastos, onToggleCompras, onBorrarAcceso,
 }) {
   const [ed, setEd] = useState({
     cargo: p.cargo || '', sede_id: p.sede_id || '', sueldo_base: p.sueldo_base ?? '',
@@ -335,6 +341,7 @@ function FilaPersona({
             <b>🔑 {pf.usuario}</b>{' '}
             <span className="chip">{ROLES[pf.rol] || pf.rol}</span>{' '}
             {pf.puede_gastos && <span className="chip chip-ok" title="Registra gastos y adelantos de tienda">+ gastos</span>}{' '}
+            {pf.puede_compras && <span className="chip chip-ok" title="Opera el módulo Compras">+ compras</span>}{' '}
             {!pf.activo && <span className="chip chip-off">sin acceso</span>}
           </>
         ) : (
@@ -346,9 +353,14 @@ function FilaPersona({
         {pf && <button className="btn-mini" onClick={onResetear}>Resetear clave</button>}
         {/* El permiso de gastos solo se ofrece para cajera/cocina: los demás roles
             ya lo tienen (o no aplica). */}
-        {pf && ['cajera', 'cocina'].includes(pf.rol) && (
+        {pf && pf.rol === 'cajera' && (
           <button className="btn-mini" onClick={onToggleGastos}>
             {pf.puede_gastos ? 'Quitar gastos' : 'Permitir gastos'}
+          </button>
+        )}
+        {pf && pf.rol === 'cajera' && (
+          <button className="btn-mini" onClick={onToggleCompras}>
+            {pf.puede_compras ? 'Quitar compras' : 'Permitir compras'}
           </button>
         )}
         {pf && <button className="btn-mini" onClick={onToggleAcceso}>{pf.activo ? 'Quitar acceso' : 'Dar acceso'}</button>}
@@ -367,13 +379,15 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
     rol: 'cajera',
     sede_id: persona.sede_id || '',
     puede_gastos: false,
+    puede_compras: false,
   })
   const nombre = `${persona.nombres} ${persona.apellidos || ''}`.trim()
   // Solo cajera/cocina/encargado trabajan en una sede fija (ver ROLES_CON_SEDE).
   const pideSede = necesitaSede(f.rol)
-  // El permiso extra solo tiene sentido para quien NO ve los gastos por su rol
-  // (o sea, cajera o cocina). Gerencia/admin/super ya los registran igual.
-  const ofreceGastos = ['cajera', 'cocina'].includes(f.rol)
+  // Los permisos extra solo tienen sentido para cajera (Fernanda registra gastos,
+  // Juan registra compras). Gerencia/admin/super ya lo hacen por su rol.
+  const ofreceGastos = f.rol === 'cajera'
+  const ofreceCompras = f.rol === 'cajera'
   // Cajera/cocina/compras entran con PIN de 6 números; admin/gerencia con una
   // contraseña normal (con letras). El input se adapta.
   const usaPin = ['cajera', 'cocina', 'compras'].includes(f.rol)
@@ -397,7 +411,7 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
         </label>
         <label className="campo">
           <span>Rol</span>
-          <select value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value, puede_gastos: false })}>
+          <select value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value, puede_gastos: false, puede_compras: false })}>
             {ROLES_ASIGNABLES.map((k) => <option key={k} value={k}>{ROLES[k]}</option>)}
           </select>
         </label>
@@ -421,6 +435,16 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
           </span>
         </label>
       )}
+      {ofreceCompras && (
+        <label className="check-permiso">
+          <input type="checkbox" checked={f.puede_compras}
+            onChange={(e) => setF({ ...f, puede_compras: e.target.checked })} />
+          <span>
+            <b>Puede registrar compras</b> — el caso de Juan: además de su caja, opera el módulo
+            Compras (catálogo, proveedores, pedidos y sus compras con voucher).
+          </span>
+        </label>
+      )}
 
       <p className="nota">
         Entra escribiendo <b>{f.usuario || '…'}</b> y su clave. No necesita correo.
@@ -439,6 +463,7 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
             usuario: f.usuario, clave: f.clave, nombre, rol: f.rol,
             sede_id: pideSede ? f.sede_id : null, persona_id: persona.id,
             puede_gastos: ofreceGastos ? f.puede_gastos : false,
+            puede_compras: ofreceCompras ? f.puede_compras : false,
           })}>
           {guardando ? 'Creando…' : 'Crear login'}
         </button>

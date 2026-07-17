@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/fetchAll'
 import { useAuth } from '../context/AuthContext'
+import { puedeCompras } from '../lib/roles'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -44,12 +45,16 @@ function SelectCat({ value, opciones, onChange, onCrear, placeholder }) {
 
 export default function Compras() {
   const { perfil } = useAuth()
-  const esAdmin = !perfil || perfil.rol === 'superadmin' || perfil.rol === 'gerente'
+  // Editar compras/entregas y el catálogo: quien opera compras (Juan/admin/super).
+  // Antes era `!perfil || rol===superadmin||gerente` → daba acceso sin perfil.
+  const esAdmin = puedeCompras(perfil)
 
   const [compras, setCompras] = useState([])
   const [entregas, setEntregas] = useState([])
   const [fondo, setFondo] = useState([])
   const [sedes, setSedes] = useState([])
+  const [catalogo, setCatalogo] = useState([])       // tabla productos (con unidad)
+  const [provDetalle, setProvDetalle] = useState([]) // proveedores con contacto
   const [cargando, setCargando] = useState(true)
 
   const hoy = new Date()
@@ -64,18 +69,26 @@ export default function Compras() {
   const [catProd, setCatProd] = useState([])      // catálogo de productos (compras_productos)
   const [catProv, setCatProv] = useState([])      // catálogo de proveedores
 
+  async function cargarCatalogos() {
+    const [{ data: prod }, { data: prov }] = await Promise.all([
+      supabase.from('productos').select('*').order('nombre'),
+      supabase.from('proveedores').select('*').order('nombre'),
+    ])
+    setCatalogo(prod || []); setProvDetalle(prov || [])
+    setCatProd((prod || []).map((x) => x.nombre))
+    setCatProv((prov || []).map((x) => x.nombre))
+  }
+
   useEffect(() => {
     (async () => {
-      const [c, e, f, { data: s }, { data: cp }, { data: cv }] = await Promise.all([
+      const [c, e, f, { data: s }] = await Promise.all([
         fetchAll('compras', 'id, fecha, nombre_libre, cantidad, unidad, precio_unitario, total, proveedor, destino_sede_id, comprobante'),
         fetchAll('entregas', 'id, fecha, producto, cantidad, presentacion, sede_id, total'),
         fetchAll('fondo_compras_dia', '*'),
         supabase.from('sedes').select('id, nombre').order('nombre'),
-        supabase.from('compras_productos').select('nombre').order('nombre'),
-        supabase.from('proveedores').select('nombre').order('nombre'),
       ])
       setCompras(c); setEntregas(e); setFondo(f); setSedes(s || [])
-      setCatProd((cp || []).map((x) => x.nombre)); setCatProv((cv || []).map((x) => x.nombre))
+      await cargarCatalogos()
       setCargando(false)
     })()
   }, [])
@@ -178,7 +191,7 @@ export default function Compras() {
       </div>
 
       <div className="tab-bar">
-        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', 'Fondo de Juan']].map(([k, l]) => (
+        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', 'Fondo de Juan'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -197,7 +210,7 @@ export default function Compras() {
             {fil.slice(0, 300).map((x) => enEdit('compras', x.id) ? (
               <tr key={x.id} className="fila-edit">
                 <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
-                <td><SelectCat value={borr.nombre_libre} opciones={catProd} placeholder="Producto…" onChange={(v) => setBorr({ ...borr, nombre_libre: v })} onCrear={() => crearEnCatalogo('compras_productos', setCatProd)} /></td>
+                <td><SelectCat value={borr.nombre_libre} opciones={catProd} placeholder="Producto…" onChange={(v) => setBorr({ ...borr, nombre_libre: v })} onCrear={() => crearEnCatalogo('productos', setCatProd)} /></td>
                 <td>{x.cantidad}</td>
                 <td><SelectCat value={borr.proveedor} opciones={catProv} placeholder="Proveedor…" onChange={(v) => setBorr({ ...borr, proveedor: v })} onCrear={() => crearEnCatalogo('proveedores', setCatProv)} /></td>
                 <td style={{ whiteSpace: 'nowrap' }}>{soles(x.total)}</td>
@@ -233,7 +246,7 @@ export default function Compras() {
             {entF.slice(0, 300).map((x) => enEdit('entregas', x.id) ? (
               <tr key={x.id} className="fila-edit">
                 <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
-                <td><SelectCat value={borr.producto} opciones={catProd} placeholder="Producto…" onChange={(v) => setBorr({ ...borr, producto: v })} onCrear={() => crearEnCatalogo('compras_productos', setCatProd)} /></td>
+                <td><SelectCat value={borr.producto} opciones={catProd} placeholder="Producto…" onChange={(v) => setBorr({ ...borr, producto: v })} onCrear={() => crearEnCatalogo('productos', setCatProd)} /></td>
                 <td>{x.cantidad ?? '—'}</td>
                 <td><select value={borr.sede_id} onChange={(e) => setBorr({ ...borr, sede_id: e.target.value })}><option value="">—</option>{sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></td>
                 <td>{Number(x.total) ? soles(x.total) : <span className="nota">s/v</span>}</td>
@@ -274,6 +287,125 @@ export default function Compras() {
           </tbody>
         </table>
       </>)}
+
+      {vista === 'catalogo' && (
+        <CatalogoTab catalogo={catalogo} puedeEditar={esAdmin} onCambio={cargarCatalogos} />
+      )}
+      {vista === 'proveedores' && (
+        <ProveedoresTab proveedores={provDetalle} puedeEditar={esAdmin} onCambio={cargarCatalogos} />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Catálogo de productos (el maestro con unidad). De aquí elige la cocina.
+const UNIDADES = ['kg', 'unidad', 'caja', 'litro', 'atado', 'paquete', 'bolsa', 'docena']
+
+function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
+  const [nuevo, setNuevo] = useState({ nombre: '', unidad: 'kg', categoria: '' })
+  const [busca, setBusca] = useState('')
+  const fil = catalogo.filter((p) => !busca || p.nombre.toLowerCase().includes(busca.toLowerCase()))
+
+  async function agregar() {
+    const nombre = nuevo.nombre.toUpperCase().replace(/\s+/g, ' ').trim()
+    if (!nombre) return
+    const { error } = await supabase.from('productos').insert({ nombre, unidad: nuevo.unidad, categoria: nuevo.categoria.trim().toUpperCase() || null })
+    if (error) return alert(/duplicate|unique/i.test(error.message) ? 'Ese producto ya existe.' : error.message)
+    setNuevo({ nombre: '', unidad: 'kg', categoria: '' }); onCambio()
+  }
+  async function editar(id, campo, valor) {
+    await supabase.from('productos').update({ [campo]: valor }).eq('id', id); onCambio()
+  }
+
+  return (
+    <div>
+      <p className="pagina-sub">El catálogo de productos con su unidad. De aquí elige la cocina su lista, y así el consolidado se suma solo.</p>
+      {puedeEditar && (
+        <div className="form-inline">
+          <input placeholder="Producto (ej: PAPA)" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
+            onKeyDown={(e) => e.key === 'Enter' && agregar()} style={{ minWidth: 180 }} />
+          <select value={nuevo.unidad} onChange={(e) => setNuevo({ ...nuevo, unidad: e.target.value })}>
+            {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <input placeholder="Categoría (opcional)" value={nuevo.categoria} onChange={(e) => setNuevo({ ...nuevo, categoria: e.target.value })} />
+          <button onClick={agregar}>+ Añadir producto</button>
+        </div>
+      )}
+      <div className="form-inline"><input placeholder="🔎 Buscar producto…" value={busca} onChange={(e) => setBusca(e.target.value)} style={{ minWidth: 220 }} /><span className="nota" style={{ alignSelf: 'center' }}>{fil.length} de {catalogo.length}</span></div>
+      <table className="tabla">
+        <thead><tr><th>Producto</th><th>Unidad</th><th>Categoría</th><th>Estado</th></tr></thead>
+        <tbody>
+          {fil.map((p) => (
+            <tr key={p.id} className={p.activo ? '' : 'fila-inactiva'}>
+              <td><strong>{p.nombre}</strong></td>
+              <td>{puedeEditar
+                ? <select value={p.unidad} onChange={(e) => editar(p.id, 'unidad', e.target.value)}>{UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}{!UNIDADES.includes(p.unidad) && <option value={p.unidad}>{p.unidad}</option>}</select>
+                : p.unidad}</td>
+              <td>{p.categoria || '—'}</td>
+              <td>{puedeEditar
+                ? <button className={`chip ${p.activo ? 'chip-ok' : 'chip-off'}`} onClick={() => editar(p.id, 'activo', !p.activo)}>{p.activo ? 'Activo' : 'Inactivo'}</button>
+                : <span className={`chip ${p.activo ? 'chip-ok' : 'chip-off'}`}>{p.activo ? 'Activo' : 'Inactivo'}</span>}</td>
+            </tr>
+          ))}
+          {catalogo.length === 0 && <tr><td colSpan="4" className="nota">Catálogo vacío. Añade productos arriba (o se siembra desde las compras).</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Proveedores con su contacto (número y ubicación).
+function ProveedoresTab({ proveedores, puedeEditar, onCambio }) {
+  const [nuevo, setNuevo] = useState({ nombre: '', telefono: '', ubicacion: '' })
+  const [edit, setEdit] = useState(null)
+  const [b, setB] = useState({})
+
+  async function agregar() {
+    const nombre = nuevo.nombre.toUpperCase().replace(/\s+/g, ' ').trim()
+    if (!nombre) return
+    const { error } = await supabase.from('proveedores').insert({ nombre, telefono: nuevo.telefono.trim() || null, ubicacion: nuevo.ubicacion.trim() || null })
+    if (error) return alert(/duplicate|unique/i.test(error.message) ? 'Ese proveedor ya existe.' : error.message)
+    setNuevo({ nombre: '', telefono: '', ubicacion: '' }); onCambio()
+  }
+  async function guardar(id) {
+    await supabase.from('proveedores').update({ telefono: b.telefono?.trim() || null, ubicacion: b.ubicacion?.trim() || null, nota: b.nota?.trim() || null }).eq('id', id)
+    setEdit(null); onCambio()
+  }
+
+  return (
+    <div>
+      <p className="pagina-sub">Los proveedores con su número y ubicación, para tenerlos a la mano.</p>
+      {puedeEditar && (
+        <div className="form-inline">
+          <input placeholder="Proveedor" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} style={{ minWidth: 160 }} />
+          <input placeholder="Teléfono" value={nuevo.telefono} onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })} style={{ maxWidth: 130 }} />
+          <input placeholder="Ubicación" value={nuevo.ubicacion} onChange={(e) => setNuevo({ ...nuevo, ubicacion: e.target.value })} />
+          <button onClick={agregar}>+ Añadir proveedor</button>
+        </div>
+      )}
+      <table className="tabla">
+        <thead><tr><th>Proveedor</th><th>Teléfono</th><th>Ubicación</th>{puedeEditar && <th></th>}</tr></thead>
+        <tbody>
+          {proveedores.map((p) => edit === p.id ? (
+            <tr key={p.id} className="fila-edit">
+              <td><strong>{p.nombre}</strong></td>
+              <td><input value={b.telefono ?? ''} onChange={(e) => setB({ ...b, telefono: e.target.value })} placeholder="Teléfono" style={{ maxWidth: 120 }} /></td>
+              <td><input value={b.ubicacion ?? ''} onChange={(e) => setB({ ...b, ubicacion: e.target.value })} placeholder="Ubicación" /></td>
+              <td className="acciones"><button className="btn-mini btn-ok" onClick={() => guardar(p.id)}>✓</button><button className="btn-mini" onClick={() => setEdit(null)}>✕</button></td>
+            </tr>
+          ) : (
+            <tr key={p.id} className={p.activo === false ? 'fila-inactiva' : ''}>
+              <td><strong>{p.nombre}</strong></td>
+              <td>{p.telefono ? <a href={`tel:${p.telefono}`}>{p.telefono}</a> : '—'}</td>
+              <td>{p.ubicacion || '—'}</td>
+              {puedeEditar && <td><button className="btn-mini" onClick={() => { setEdit(p.id); setB({ telefono: p.telefono || '', ubicacion: p.ubicacion || '', nota: p.nota || '' }) }}>✎</button></td>}
+            </tr>
+          ))}
+          {proveedores.length === 0 && <tr><td colSpan="4" className="nota">Sin proveedores.</td></tr>}
+        </tbody>
+      </table>
     </div>
   )
 }
