@@ -379,6 +379,13 @@ body {
 .lista-pend li { font-size: 14px; line-height: 1.45; }
 .lista-pend code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
 
+/* Paso 1 del gasto: el comprobante va primero */
+.paso-voucher {
+  border: 1px dashed var(--linea, #e5e7eb); border-radius: 8px; padding: 12px; margin-bottom: 10px;
+  background: #fff;
+}
+.paso-voucher > .t-label, .consolidado .t-label { display: block; margin-bottom: 4px; }
+
 /* ---------- Móvil ---------- */
 @media (max-width: 760px) {
   .menu-btn { display: block; }

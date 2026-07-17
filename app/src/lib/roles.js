@@ -25,7 +25,6 @@ export const MODULOS = [
   { key: 'registro', to: '/registrar-caja', label: 'Registrar Caja', icon: '✍️' },
   { key: 'cuadre', to: '/cuadre', label: 'Caja Diaria', icon: '🧮' },
   { key: 'gastos', to: '/gastos', label: 'Gastos', icon: '📉' },
-  { key: 'pagos', to: '/pagos', label: 'Pagos y Adelantos', icon: '💸' },
   { key: 'compras', to: '/compras', label: 'Compras', icon: '🛒' },
   { key: 'lista', to: '/lista', label: 'Mi Lista', icon: '📝' },
   { key: 'ventas', to: '/ventas', label: 'Ventas', icon: '💵' },
@@ -39,9 +38,9 @@ export const MODULOS = [
 // Qué módulos ve cada rol. El orden importa: el primero es donde aterriza al
 // entrar (ver rutaInicial).
 export const ROLE_ACCESS = {
-  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'pagos', 'compras', 'ventas', 'productos', 'config', 'sedes', 'personas'],
-  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'pagos', 'compras', 'ventas', 'productos'],
-  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'pagos', 'compras', 'ventas', 'productos'],
+  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'ventas', 'productos', 'config', 'sedes', 'personas'],
+  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'ventas', 'productos'],
+  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'ventas', 'productos'],
   compras:    ['compras'],
   cajera:     ['registro'],
   cocina:     ['lista'],
@@ -53,10 +52,10 @@ export const ROLE_ACCESS = {
 // Sin rol no se accede a nada. El `|| []` es el fail-closed: un rol no mapeado
 // no ve nada, en vez de verlo todo.
 // Los permisos especiales abren un módulo aunque el rol no lo tenga:
-//   puedeGastos (Fernanda) → Pagos · puedeCompras (Juan) → Compras
+//   puedeGastos (Fernanda) → Gastos · puedeCompras (Juan) → Compras
 export function canAccess(rol, key, opts = {}) {
   if (!rol) return false
-  if (key === 'pagos' && opts.puedeGastos) return true
+  if (key === 'gastos' && opts.puedeGastos) return true
   if (key === 'compras' && opts.puedeCompras) return true
   return (ROLE_ACCESS[rol] || []).includes(key)
 }
@@ -65,7 +64,7 @@ export function canAccess(rol, key, opts = {}) {
 // así que mandarlos a "/" los dejaría rebotando. Cada rol tiene su destino.
 export function rutaInicial(rol, opts = {}) {
   const lista = [...(ROLE_ACCESS[rol] || [])]
-  if (opts.puedeGastos && !lista.includes('pagos')) lista.push('pagos')
+  if (opts.puedeGastos && !lista.includes('gastos')) lista.push('gastos')
   if (opts.puedeCompras && !lista.includes('compras')) lista.push('compras')
   const primero = lista[0]
   return MODULOS.find((m) => m.key === primero)?.to || '/login'
