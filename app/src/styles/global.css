@@ -288,6 +288,20 @@ body {
   font-size: 14px; cursor: pointer;
 }
 .check-permiso input { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; }
+
+/* "Ver como" del superusuario, en el sidebar */
+.ver-como {
+  margin: 4px 0 8px; padding: 8px 10px; background: rgba(255,255,255,.12);
+  border-radius: 8px; display: grid; gap: 4px;
+}
+.ver-como label { font-size: 11px; color: rgba(255,255,255,.85); font-weight: 700; letter-spacing: .3px; }
+.ver-como select { font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 0; font-family: inherit; }
+/* Aviso de que estás en modo prueba */
+.ver-como-aviso {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--amarillo, #F8F80B); color: #222; border-radius: 8px;
+  padding: 8px 12px; margin-bottom: 14px; font-size: 14px;
+}
 .arqueo-box small { color: var(--gris); font-size: 11.5px; }
 
 /* Comprobantes del turno (revisión del admin) */
