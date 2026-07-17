@@ -166,6 +166,12 @@ body {
 .tabla th { background: #fafafa; color: var(--gris); font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; }
 .tabla tr:last-child td { border-bottom: 0; }
 .fila-inactiva { opacity: .55; }
+/* Encabezado que separa a los desactivados del resto de la lista. */
+.fila-separadora td {
+  background: var(--gris-claro, #f4f4f5); color: var(--gris, #6b7280);
+  font-size: 13px; font-weight: 600; padding: 8px 12px;
+  border-top: 2px solid var(--linea, #e5e7eb);
+}
 .chip { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .chip-ok { background: #e7f7ec; color: #1a7f37; }
 .chip-off { background: #f0f0f0; color: #777; }

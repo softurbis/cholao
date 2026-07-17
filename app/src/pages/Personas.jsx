@@ -45,6 +45,11 @@ export default function Personas() {
     return m
   }, [perfiles])
 
+  // Activos arriba, desactivados abajo. Se separan para que la lista de trabajo
+  // no se ensucie con gente que ya no está, pero sin perderlos de vista.
+  const activas = useMemo(() => personas.filter((p) => p.activo), [personas])
+  const inactivas = useMemo(() => personas.filter((p) => !p.activo), [personas])
+
   // Logins que no cuelgan de ninguna persona (el superadmin, por ejemplo)
   const sueltos = useMemo(() => perfiles.filter((p) => !p.persona_id), [perfiles])
 
@@ -180,37 +185,46 @@ export default function Personas() {
         <button type="submit" disabled={guardando}>{guardando ? 'Guardando…' : '+ Añadir persona'}</button>
       </form>
 
-      {cargando ? <p className="nota">Cargando…</p> : (
-        <table className="tabla">
-          <thead>
-            <tr>
-              <th>Persona</th><th>DNI</th><th>Cargo</th><th>Sede</th><th>Sueldo</th>
-              <th>Acceso al sistema</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {personas.map((p) => {
-              const pf = accesoDe[p.id]
-              return (
-                <FilaPersona
-                  key={p.id} p={p} pf={pf} sedes={sedes} nombreSede={nombreSede}
-                  editando={editando === p.id}
-                  onEditar={() => setEditando(editando === p.id ? null : p.id)}
-                  onGuardar={(campos) => guardarEdicion(p, campos)}
-                  onToggle={() => togglePersona(p)}
-                  onCrearLogin={() => { setCreandoPara(p); setCredencial(null) }}
-                  onResetear={() => resetear(pf)}
-                  onToggleAcceso={() => toggleAcceso(pf)}
-                  onBorrarAcceso={() => borrarAcceso(pf)}
-                />
-              )
-            })}
-            {personas.length === 0 && (
-              <tr><td colSpan="7" className="nota">Sin personas. Añade la primera arriba.</td></tr>
-            )}
-          </tbody>
-        </table>
-      )}
+      {cargando ? <p className="nota">Cargando…</p> : (() => {
+        const fila = (p) => (
+          <FilaPersona
+            key={p.id} p={p} pf={accesoDe[p.id]} sedes={sedes} nombreSede={nombreSede}
+            editando={editando === p.id}
+            onEditar={() => setEditando(editando === p.id ? null : p.id)}
+            onGuardar={(campos) => guardarEdicion(p, campos)}
+            onToggle={() => togglePersona(p)}
+            onCrearLogin={() => { setCreandoPara(p); setCredencial(null) }}
+            onResetear={() => resetear(accesoDe[p.id])}
+            onToggleAcceso={() => toggleAcceso(accesoDe[p.id])}
+            onBorrarAcceso={() => borrarAcceso(accesoDe[p.id])}
+          />
+        )
+        return (
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Persona</th><th>DNI</th><th>Cargo</th><th>Sede</th><th>Sueldo</th>
+                <th>Acceso al sistema</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {activas.map(fila)}
+              {personas.length === 0 && (
+                <tr><td colSpan="7" className="nota">Sin personas. Añade la primera arriba.</td></tr>
+              )}
+              {inactivas.length > 0 && (
+                <tr className="fila-separadora">
+                  <td colSpan="7">
+                    Desactivados ({inactivas.length}) — ya no trabajan aquí, pero se guardan
+                    para que su historial de caja y planilla siga cuadrando.
+                  </td>
+                </tr>
+              )}
+              {inactivas.map(fila)}
+            </tbody>
+          </table>
+        )
+      })()}
 
       {creandoPara && (
         <FormAcceso
