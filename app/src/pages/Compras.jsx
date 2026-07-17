@@ -191,7 +191,7 @@ export default function Compras() {
       </div>
 
       <div className="tab-bar">
-        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', 'Fondo de Juan'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
+        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', 'Fondo de Juan'], ['pedidos', '📋 Pedidos'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -296,6 +296,9 @@ export default function Compras() {
       )}
       {vista === 'kardex' && (
         <KardexTab catalogo={catalogo} sedes={sedes} puedeMover={esAdmin} />
+      )}
+      {vista === 'pedidos' && (
+        <PedidosTab catalogo={catalogo} perfil={perfil} esAdmin={esAdmin} />
       )}
     </div>
   )
@@ -547,6 +550,144 @@ function KardexTab({ catalogo, sedes, puedeMover }) {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Consolidado de lo que piden las sedes + Pedidos de Juan a Cesar.
+// Circuito: cocina sube lista → aquí Juan ve el CONSOLIDADO (suma por producto)
+// → arma un PEDIDO → Cesar lo compra e INGRESA al almacén.
+const EST_LABEL = { pendiente: 'Pendiente', comprado: 'Comprado', recibido: 'Recibido', anulado: 'Anulado' }
+
+function PedidosTab({ catalogo, perfil, esAdmin }) {
+  const [consol, setConsol] = useState([])
+  const [pedidos, setPedidos] = useState([])
+  const [items, setItems] = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [add, setAdd] = useState({})   // {pedidoId: {producto_id, cantidad}}
+
+  async function cargar() {
+    setCargando(true)
+    const [{ data: c }, { data: p }, { data: it }] = await Promise.all([
+      supabase.from('vista_consolidado_listas').select('*'),
+      supabase.from('pedidos').select('*').order('fecha', { ascending: false }).limit(200),
+      supabase.from('pedido_items').select('*'),
+    ])
+    setConsol(c || []); setPedidos(p || []); setItems(it || []); setCargando(false)
+  }
+  useEffect(() => { cargar() }, [])
+
+  const prodN = useMemo(() => Object.fromEntries(catalogo.map((p) => [p.id, p])), [catalogo])
+  const itemsDe = (pid) => items.filter((x) => x.pedido_id === pid)
+
+  async function nuevoPedido() {
+    const { data, error } = await supabase.from('pedidos').insert({ estado: 'pendiente', creado_por: perfil?.id || null }).select().single()
+    if (error) return alert(error.message)
+    setPedidos((p) => [data, ...p])
+  }
+  async function armarConConsolidado(pid) {
+    if (!consol.length) return alert('No hay nada pendiente en las listas de las sedes.')
+    const filas = consol.filter((c) => !String(c.clave).startsWith('libre:')).map((c) => ({
+      pedido_id: pid, producto_id: c.clave, cantidad: Number(c.total_pedido) || null, unidad: c.unidad, comprado: false,
+    }))
+    if (!filas.length) return alert('El consolidado no tiene productos del catálogo (solo texto libre).')
+    const { error } = await supabase.from('pedido_items').insert(filas)
+    if (error) return alert(error.message)
+    cargar()
+  }
+  async function addItem(pid) {
+    const a = add[pid] || {}
+    if (!a.producto_id || !(Number(a.cantidad) > 0)) return
+    const p = prodN[a.producto_id]
+    const { error } = await supabase.from('pedido_items').insert({ pedido_id: pid, producto_id: a.producto_id, cantidad: Number(a.cantidad), unidad: p?.unidad, comprado: false })
+    if (error) return alert(error.message)
+    setAdd((s) => ({ ...s, [pid]: {} })); cargar()
+  }
+  async function quitarItem(id) { await supabase.from('pedido_items').delete().eq('id', id); cargar() }
+  async function toggleComprado(it) { await supabase.from('pedido_items').update({ comprado: !it.comprado }).eq('id', it.id); cargar() }
+  async function setEstado(ped, estado) { await supabase.from('pedidos').update({ estado }).eq('id', ped.id); cargar() }
+
+  // Cesar: ingresar al almacén lo comprado de este pedido (crea los ingresos).
+  async function ingresarAlmacen(ped) {
+    const its = itemsDe(ped.id).filter((x) => x.producto_id && (x.comprado || true))
+    if (!its.length) return alert('Este pedido no tiene productos del catálogo para ingresar.')
+    if (!confirm(`¿Ingresar al almacén ${its.length} producto(s) de este pedido?`)) return
+    const movs = its.map((x) => ({ producto_id: x.producto_id, tipo: 'ingreso', cantidad: Number(x.cantidad || 0), nota: 'Pedido ' + ped.id.slice(0, 6), fecha: fmt(new Date()) }))
+    const { error } = await supabase.from('almacen_movimientos').insert(movs)
+    if (error) return alert(error.message)
+    await supabase.from('pedidos').update({ estado: 'recibido' }).eq('id', ped.id)
+    alert('✅ Ingresado al almacén. Ya puedes repartir a las sedes desde Almacén / Kardex.')
+    cargar()
+  }
+
+  if (cargando) return <p className="nota">Cargando…</p>
+
+  return (
+    <div>
+      <p className="pagina-sub">Lo que piden las sedes, sumado. Juan arma el pedido; Cesar lo compra e ingresa al almacén.</p>
+
+      <div className="panel-detalle">
+        <h3>📊 Consolidado — lo que piden las sedes</h3>
+        {consol.length === 0 ? <p className="nota">Ninguna sede tiene pedidos pendientes en sus listas.</p> : (
+          <table className="tabla">
+            <thead><tr><th>Producto</th><th>Total</th><th>Sedes</th></tr></thead>
+            <tbody>
+              {consol.map((c) => (
+                <tr key={c.clave}>
+                  <td><strong>{c.producto}</strong>{String(c.clave).startsWith('libre:') && <span className="chip chip-off" style={{ marginLeft: 6 }}>texto libre</span>}</td>
+                  <td style={{ fontWeight: 700 }}>{Number(c.total_pedido).toLocaleString('es-PE')} {c.unidad}</td>
+                  <td>{c.sedes}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {esAdmin && <button className="btn-guardar" style={{ margin: '4px 0 14px' }} onClick={nuevoPedido}>+ Nuevo pedido a Cesar</button>}
+
+      {pedidos.map((ped) => {
+        const its = itemsDe(ped.id)
+        return (
+          <div key={ped.id} className="panel-detalle">
+            <h3>Pedido {ped.fecha} <span className={`chip ${ped.estado === 'recibido' ? 'chip-ok' : ped.estado === 'anulado' ? 'chip-off' : ''}`}>{EST_LABEL[ped.estado] || ped.estado}</span></h3>
+            {esAdmin && ped.estado === 'pendiente' && (
+              <div className="form-inline" style={{ marginBottom: 8 }}>
+                <button className="btn-mini" onClick={() => armarConConsolidado(ped.id)}>⤵ Armar con el consolidado</button>
+              </div>
+            )}
+            <table className="tabla">
+              <thead><tr><th>Producto</th><th>Cantidad</th><th>Comprado</th>{esAdmin && <th></th>}</tr></thead>
+              <tbody>
+                {its.map((it) => (
+                  <tr key={it.id} className={it.comprado ? 'fila-inactiva' : ''}>
+                    <td><strong>{prodN[it.producto_id]?.nombre || it.nombre_libre || '—'}</strong></td>
+                    <td>{it.cantidad} {it.unidad || ''}</td>
+                    <td><button className={`chip ${it.comprado ? 'chip-ok' : 'chip-off'}`} onClick={() => esAdmin && toggleComprado(it)}>{it.comprado ? '✓ Sí' : 'No'}</button></td>
+                    {esAdmin && <td><button className="btn-mini btn-peligro" onClick={() => quitarItem(it.id)}>✕</button></td>}
+                  </tr>
+                ))}
+                {its.length === 0 && <tr><td colSpan={esAdmin ? 4 : 3} className="nota">Sin productos. Arma con el consolidado o añade abajo.</td></tr>}
+              </tbody>
+            </table>
+            {esAdmin && ped.estado !== 'recibido' && ped.estado !== 'anulado' && (
+              <div className="form-inline" style={{ marginTop: 8 }}>
+                <select value={add[ped.id]?.producto_id || ''} onChange={(e) => setAdd((s) => ({ ...s, [ped.id]: { ...s[ped.id], producto_id: e.target.value } }))} style={{ minWidth: 170 }}>
+                  <option value="">Añadir producto…</option>
+                  {catalogo.filter((p) => p.activo).map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad})</option>)}
+                </select>
+                <input type="number" placeholder="Cant." className="in-num" value={add[ped.id]?.cantidad || ''} onChange={(e) => setAdd((s) => ({ ...s, [ped.id]: { ...s[ped.id], cantidad: e.target.value } }))} style={{ maxWidth: 90 }} />
+                <button className="btn-mini" onClick={() => addItem(ped.id)}>+ Añadir</button>
+                <span style={{ flex: 1 }} />
+                <button className="btn-guardar" onClick={() => ingresarAlmacen(ped)}>🏬 Ingresar al almacén</button>
+                <button className="btn-mini" onClick={() => setEstado(ped, 'anulado')}>Anular</button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {pedidos.length === 0 && <div className="bloque-vacio"><p>No hay pedidos todavía.{esAdmin ? ' Crea uno arriba.' : ''}</p></div>}
     </div>
   )
 }
