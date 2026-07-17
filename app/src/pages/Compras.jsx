@@ -191,7 +191,7 @@ export default function Compras() {
       </div>
 
       <div className="tab-bar">
-        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', 'Fondo de Juan'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores']].map(([k, l]) => (
+        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', 'Fondo de Juan'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -294,6 +294,9 @@ export default function Compras() {
       {vista === 'proveedores' && (
         <ProveedoresTab proveedores={provDetalle} puedeEditar={esAdmin} onCambio={cargarCatalogos} />
       )}
+      {vista === 'kardex' && (
+        <KardexTab catalogo={catalogo} sedes={sedes} puedeMover={esAdmin} />
+      )}
     </div>
   )
 }
@@ -317,10 +320,22 @@ function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
   async function editar(id, campo, valor) {
     await supabase.from('productos').update({ [campo]: valor }).eq('id', id); onCambio()
   }
+  async function subirFoto(p, file) {
+    if (!file) return
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const ruta = `productos/${p.id}.${ext}`
+    const { error } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined, upsert: true })
+    if (error) return alert('No pude subir la foto: ' + error.message)
+    await editar(p.id, 'foto_url', ruta)
+  }
+  async function verFoto(ruta) {
+    const { data } = await supabase.storage.from('arqueos').createSignedUrl(ruta, 3600)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
 
   return (
     <div>
-      <p className="pagina-sub">El catálogo de productos con su unidad. De aquí elige la cocina su lista, y así el consolidado se suma solo.</p>
+      <p className="pagina-sub">El catálogo de productos: unidad, ubicación en el almacén y foto. De aquí elige la cocina su lista.</p>
       {puedeEditar && (
         <div className="form-inline">
           <input placeholder="Producto (ej: PAPA)" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
@@ -334,7 +349,7 @@ function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
       )}
       <div className="form-inline"><input placeholder="🔎 Buscar producto…" value={busca} onChange={(e) => setBusca(e.target.value)} style={{ minWidth: 220 }} /><span className="nota" style={{ alignSelf: 'center' }}>{fil.length} de {catalogo.length}</span></div>
       <table className="tabla">
-        <thead><tr><th>Producto</th><th>Unidad</th><th>Categoría</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Producto</th><th>Unidad</th><th>Categoría</th><th>Ubicación</th><th>Foto</th><th>Estado</th></tr></thead>
         <tbody>
           {fil.map((p) => (
             <tr key={p.id} className={p.activo ? '' : 'fila-inactiva'}>
@@ -344,11 +359,19 @@ function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
                 : p.unidad}</td>
               <td>{p.categoria || '—'}</td>
               <td>{puedeEditar
+                ? <input defaultValue={p.ubicacion || ''} placeholder="Estante A2…" onBlur={(e) => e.target.value !== (p.ubicacion || '') && editar(p.id, 'ubicacion', e.target.value.trim().toUpperCase() || null)} style={{ maxWidth: 120 }} />
+                : (p.ubicacion || '—')}</td>
+              <td>
+                {p.foto_url && <button className="btn-mini" onClick={() => verFoto(p.foto_url)}>📷 Ver</button>}
+                {puedeEditar && <label className="btn-mini" style={{ cursor: 'pointer' }}>{p.foto_url ? 'Cambiar' : '+ Foto'}
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => subirFoto(p, e.target.files?.[0])} /></label>}
+              </td>
+              <td>{puedeEditar
                 ? <button className={`chip ${p.activo ? 'chip-ok' : 'chip-off'}`} onClick={() => editar(p.id, 'activo', !p.activo)}>{p.activo ? 'Activo' : 'Inactivo'}</button>
                 : <span className={`chip ${p.activo ? 'chip-ok' : 'chip-off'}`}>{p.activo ? 'Activo' : 'Inactivo'}</span>}</td>
             </tr>
           ))}
-          {catalogo.length === 0 && <tr><td colSpan="4" className="nota">Catálogo vacío. Añade productos arriba (o se siembra desde las compras).</td></tr>}
+          {catalogo.length === 0 && <tr><td colSpan="6" className="nota">Catálogo vacío. Añade productos arriba (o se siembra desde las compras).</td></tr>}
         </tbody>
       </table>
     </div>
@@ -406,6 +429,124 @@ function ProveedoresTab({ proveedores, puedeEditar, onCambio }) {
           {proveedores.length === 0 && <tr><td colSpan="4" className="nota">Sin proveedores.</td></tr>}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Almacén central + Kardex. Cesar INGRESA la compra al por mayor; se reparte a
+// las sedes (SALIDA). El kardex muestra, por producto, cada movimiento con el
+// saldo corriendo.
+function KardexTab({ catalogo, sedes, puedeMover }) {
+  const [stock, setStock] = useState([])
+  const [movs, setMovs] = useState([])
+  const [prodSel, setProdSel] = useState('')
+  const [cargando, setCargando] = useState(true)
+  const [mov, setMov] = useState({ tipo: 'ingreso', producto_id: '', cantidad: '', sede_id: '', nota: '', fecha: fmt(new Date()) })
+
+  async function cargar() {
+    setCargando(true)
+    const [{ data: s }, { data: m }] = await Promise.all([
+      supabase.from('vista_almacen_stock').select('*'),
+      supabase.from('almacen_movimientos').select('*').order('fecha', { ascending: false }).limit(3000),
+    ])
+    setStock(s || []); setMovs(m || []); setCargando(false)
+  }
+  useEffect(() => { cargar() }, [])
+
+  const prodN = useMemo(() => Object.fromEntries(catalogo.map((p) => [p.id, p])), [catalogo])
+  const sedeN = useMemo(() => Object.fromEntries(sedes.map((s) => [s.id, s.nombre])), [sedes])
+
+  // Kardex del producto elegido: movimientos en orden cronológico con saldo.
+  const kardex = useMemo(() => {
+    if (!prodSel) return []
+    const suyos = movs.filter((m) => m.producto_id === prodSel)
+      .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.created_at || '').localeCompare(b.created_at || ''))
+    let saldo = 0
+    return suyos.map((m) => { saldo += m.tipo === 'ingreso' ? Number(m.cantidad || 0) : -Number(m.cantidad || 0); return { ...m, saldo } })
+  }, [movs, prodSel])
+
+  async function registrar() {
+    if (!mov.producto_id) return alert('Elige el producto.')
+    if (!(Number(mov.cantidad) > 0)) return alert('Cantidad mayor a 0.')
+    if (mov.tipo === 'salida' && !mov.sede_id) return alert('Elige a qué sede sale.')
+    const { error } = await supabase.from('almacen_movimientos').insert({
+      producto_id: mov.producto_id, tipo: mov.tipo, cantidad: Number(mov.cantidad),
+      sede_id: mov.tipo === 'salida' ? mov.sede_id : null, nota: mov.nota.trim() || null, fecha: mov.fecha,
+    })
+    if (error) return alert(error.message)
+    setMov({ ...mov, cantidad: '', nota: '' }); cargar()
+  }
+
+  return (
+    <div>
+      <p className="pagina-sub">El almacén central: Cesar ingresa la compra al por mayor y se reparte a las sedes. El kardex lleva el saldo de cada producto.</p>
+
+      {puedeMover && (
+        <div className="panel-detalle">
+          <h3>Registrar movimiento</h3>
+          <div className="form-inline">
+            <select value={mov.tipo} onChange={(e) => setMov({ ...mov, tipo: e.target.value })}>
+              <option value="ingreso">⬆ Ingreso (compra al por mayor)</option>
+              <option value="salida">⬇ Salida (repartir a sede)</option>
+            </select>
+            <select value={mov.producto_id} onChange={(e) => setMov({ ...mov, producto_id: e.target.value })} style={{ minWidth: 180 }}>
+              <option value="">Producto…</option>
+              {catalogo.filter((p) => p.activo).map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad})</option>)}
+            </select>
+            <input type="number" placeholder="Cant." className="in-num" value={mov.cantidad} onChange={(e) => setMov({ ...mov, cantidad: e.target.value })} style={{ maxWidth: 90 }} />
+            {mov.tipo === 'salida' && (
+              <select value={mov.sede_id} onChange={(e) => setMov({ ...mov, sede_id: e.target.value })}>
+                <option value="">¿A qué sede?</option>
+                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
+            )}
+            <input type="date" value={mov.fecha} onChange={(e) => setMov({ ...mov, fecha: e.target.value })} />
+            <input placeholder="Nota" value={mov.nota} onChange={(e) => setMov({ ...mov, nota: e.target.value })} />
+            <button onClick={registrar}>+ Registrar</button>
+          </div>
+        </div>
+      )}
+
+      <h2 className="sub-titulo" style={{ marginTop: 18 }}>Stock del almacén</h2>
+      {cargando ? <p className="nota">Cargando…</p> : (
+        <table className="tabla">
+          <thead><tr><th>Producto</th><th>Stock</th><th>Ubicación</th><th></th></tr></thead>
+          <tbody>
+            {stock.filter((s) => s.stock !== 0 || movs.some((m) => m.producto_id === s.producto_id)).map((s) => (
+              <tr key={s.producto_id} className={prodSel === s.producto_id ? 'fila-edit' : ''}>
+                <td><strong>{s.nombre}</strong></td>
+                <td style={{ fontWeight: 700, color: Number(s.stock) < 0 ? 'var(--rojo)' : undefined }}>{Number(s.stock).toLocaleString('es-PE')} {s.unidad}</td>
+                <td>{prodN[s.producto_id]?.ubicacion || '—'}</td>
+                <td><button className="btn-mini" onClick={() => setProdSel(prodSel === s.producto_id ? '' : s.producto_id)}>{prodSel === s.producto_id ? 'Cerrar' : '📖 Kardex'}</button></td>
+              </tr>
+            ))}
+            {stock.every((s) => s.stock === 0) && !movs.length && <tr><td colSpan="4" className="nota">El almacén está vacío. Registra un ingreso arriba.</td></tr>}
+          </tbody>
+        </table>
+      )}
+
+      {prodSel && (
+        <div className="panel-detalle">
+          <h3>Kardex — {prodN[prodSel]?.nombre}</h3>
+          <table className="tabla">
+            <thead><tr><th>Fecha</th><th>Movimiento</th><th>Entra</th><th>Sale</th><th>Saldo</th><th>Detalle</th></tr></thead>
+            <tbody>
+              {kardex.map((m) => (
+                <tr key={m.id}>
+                  <td style={{ whiteSpace: 'nowrap' }}>{m.fecha}</td>
+                  <td><span className={`chip ${m.tipo === 'ingreso' ? 'chip-ok' : 'chip-off'}`}>{m.tipo}</span></td>
+                  <td>{m.tipo === 'ingreso' ? Number(m.cantidad).toLocaleString('es-PE') : ''}</td>
+                  <td>{m.tipo === 'salida' ? Number(m.cantidad).toLocaleString('es-PE') : ''}</td>
+                  <td style={{ fontWeight: 700 }}>{Number(m.saldo).toLocaleString('es-PE')}</td>
+                  <td className="nota">{m.sede_id ? `→ ${sedeN[m.sede_id] || '—'}` : ''}{m.nota ? ` ${m.nota}` : ''}</td>
+                </tr>
+              ))}
+              {kardex.length === 0 && <tr><td colSpan="6" className="nota">Sin movimientos de este producto.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
