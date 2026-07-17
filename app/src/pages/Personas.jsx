@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { ROLES, necesitaSede } from '../lib/roles'
+import { ROLES, ROLES_ASIGNABLES, necesitaSede } from '../lib/roles'
 import {
   crearUsuario, resetearClave, activarUsuario, eliminarUsuario,
   sugerirUsuario, sugerirPin, ES_PIN,
@@ -123,6 +123,14 @@ export default function Personas() {
     } catch (e) { aviso('err', e.message) }
   }
 
+  // El permiso de gastos se guarda en perfiles; el superusuario lo edita directo
+  // (su RLS se lo permite), sin pasar por la Edge Function.
+  async function toggleGastos(pf) {
+    const { error } = await supabase.from('perfiles').update({ puede_gastos: !pf.puede_gastos }).eq('id', pf.id)
+    if (error) aviso('err', error.message)
+    else { aviso('ok', pf.puede_gastos ? 'Permiso de gastos quitado' : '✅ Ahora puede registrar gastos y adelantos'); cargar() }
+  }
+
   async function borrarAcceso(pf) {
     if (!confirm(`¿Eliminar el login "${pf.usuario}" de ${pf.nombre}?\n\nSu historial (turnos, gastos) NO se borra.\nSi la persona solo se fue, es mejor DESACTIVAR.`)) return
     try {
@@ -150,7 +158,7 @@ export default function Personas() {
       {ok && <div className="aviso-ok">{ok}</div>}
 
       {credencial && (
-        <div className="arqueo-box">
+        <div className="panel-detalle">
           <h3>🔑 Anota estos datos y dáselos a {credencial.nombre}</h3>
           <div className="dos-cols">
             <p><span className="t-label">Usuario</span> <b className="t-valor">{credencial.usuario}</b></p>
@@ -196,6 +204,7 @@ export default function Personas() {
             onCrearLogin={() => { setCreandoPara(p); setCredencial(null) }}
             onResetear={() => resetear(accesoDe[p.id])}
             onToggleAcceso={() => toggleAcceso(accesoDe[p.id])}
+            onToggleGastos={() => toggleGastos(accesoDe[p.id])}
             onBorrarAcceso={() => borrarAcceso(accesoDe[p.id])}
           />
         )
@@ -276,7 +285,7 @@ export default function Personas() {
 // ---------------------------------------------------------------------
 function FilaPersona({
   p, pf, sedes, nombreSede, editando, onEditar, onGuardar, onToggle,
-  onCrearLogin, onResetear, onToggleAcceso, onBorrarAcceso,
+  onCrearLogin, onResetear, onToggleAcceso, onToggleGastos, onBorrarAcceso,
 }) {
   const [ed, setEd] = useState({
     cargo: p.cargo || '', sede_id: p.sede_id || '', sueldo_base: p.sueldo_base ?? '',
@@ -325,6 +334,7 @@ function FilaPersona({
           <>
             <b>🔑 {pf.usuario}</b>{' '}
             <span className="chip">{ROLES[pf.rol] || pf.rol}</span>{' '}
+            {pf.puede_gastos && <span className="chip chip-ok" title="Registra gastos y adelantos de tienda">+ gastos</span>}{' '}
             {!pf.activo && <span className="chip chip-off">sin acceso</span>}
           </>
         ) : (
@@ -334,6 +344,13 @@ function FilaPersona({
       <td className="acciones">
         <button className="btn-mini" onClick={onEditar}>✎</button>
         {pf && <button className="btn-mini" onClick={onResetear}>Resetear clave</button>}
+        {/* El permiso de gastos solo se ofrece para cajera/cocina: los demás roles
+            ya lo tienen (o no aplica). */}
+        {pf && ['cajera', 'cocina'].includes(pf.rol) && (
+          <button className="btn-mini" onClick={onToggleGastos}>
+            {pf.puede_gastos ? 'Quitar gastos' : 'Permitir gastos'}
+          </button>
+        )}
         {pf && <button className="btn-mini" onClick={onToggleAcceso}>{pf.activo ? 'Quitar acceso' : 'Dar acceso'}</button>}
         {pf && <button className="btn-mini btn-peligro" onClick={onBorrarAcceso}>✕ login</button>}
         {!pf && <button className="btn-mini" onClick={onToggle}>{p.activo ? 'Desactivar' : 'Activar'}</button>}
@@ -349,15 +366,21 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
     clave: sugerirPin(),
     rol: 'cajera',
     sede_id: persona.sede_id || '',
+    puede_gastos: false,
   })
   const nombre = `${persona.nombres} ${persona.apellidos || ''}`.trim()
-  // Solo encargado y cajera trabajan en una sede fija (ver ROLES_CON_SEDE).
-  // La Edge Function valida lo mismo del lado del servidor: esto es para no
-  // hacer perder el viaje.
+  // Solo cajera/cocina/encargado trabajan en una sede fija (ver ROLES_CON_SEDE).
   const pideSede = necesitaSede(f.rol)
+  // El permiso extra solo tiene sentido para quien NO ve los gastos por su rol
+  // (o sea, cajera o cocina). Gerencia/admin/super ya los registran igual.
+  const ofreceGastos = ['cajera', 'cocina'].includes(f.rol)
+  // Cajera/cocina/compras entran con PIN de 6 números; admin/gerencia con una
+  // contraseña normal (con letras). El input se adapta.
+  const usaPin = ['cajera', 'cocina', 'compras'].includes(f.rol)
+  const claveOk = usaPin ? ES_PIN.test(f.clave) : f.clave.length >= 6
 
   return (
-    <div className="arqueo-box">
+    <div className="panel-detalle">
       <h3>🔑 Crear login para {nombre}</h3>
       <div className="filtros">
         <label className="campo">
@@ -366,15 +389,16 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
             placeholder="marcelo" autoFocus />
         </label>
         <label className="campo">
-          <span>PIN (6 números)</span>
-          <input value={f.clave} inputMode="numeric" maxLength={6}
-            onChange={(e) => setF({ ...f, clave: e.target.value.replace(/\D/g, '') })}
-            style={{ letterSpacing: 3, fontWeight: 700 }} />
+          <span>{usaPin ? 'PIN (6 números)' : 'Contraseña'}</span>
+          <input value={f.clave}
+            inputMode={usaPin ? 'numeric' : 'text'} maxLength={usaPin ? 6 : 40}
+            onChange={(e) => setF({ ...f, clave: usaPin ? e.target.value.replace(/\D/g, '') : e.target.value })}
+            style={usaPin ? { letterSpacing: 3, fontWeight: 700 } : undefined} />
         </label>
         <label className="campo">
           <span>Rol</span>
-          <select value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value })}>
-            {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <select value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value, puede_gastos: false })}>
+            {ROLES_ASIGNABLES.map((k) => <option key={k} value={k}>{ROLES[k]}</option>)}
           </select>
         </label>
         <label className="campo">
@@ -387,20 +411,34 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
         </label>
       </div>
 
+      {ofreceGastos && (
+        <label className="check-permiso">
+          <input type="checkbox" checked={f.puede_gastos}
+            onChange={(e) => setF({ ...f, puede_gastos: e.target.checked })} />
+          <span>
+            <b>Puede registrar gastos de tienda y adelantos</b> — el caso de Fernanda:
+            además de su caja, sube los gastos del cholao (agua, luz…) y los adelantos de todos.
+          </span>
+        </label>
+      )}
+
       <p className="nota">
-        Entra escribiendo <b>{f.usuario || '…'}</b> y su PIN. No necesita correo.
+        Entra escribiendo <b>{f.usuario || '…'}</b> y su clave. No necesita correo.
         {pideSede && ' Solo verá los datos de su sede.'}
-        {' '}El PIN lo pone el sistema a propósito: si lo eligieran ellos, terminaría siendo 123456.
+        {' '}Para cajeros/cocina el PIN lo pone el sistema (si lo eligieran, sería 123456).
       </p>
-      {!ES_PIN.test(f.clave) && (
-        <p className="alerta">El PIN debe ser exactamente 6 números. Supabase no acepta claves más cortas — un PIN de 4 no es posible.</p>
+      {!claveOk && (
+        <p className="alerta">{usaPin
+          ? 'El PIN debe ser exactamente 6 números (Supabase no acepta menos de 6).'
+          : 'La contraseña debe tener al menos 6 caracteres.'}</p>
       )}
 
       <div className="acciones">
-        <button className="btn-guardar" disabled={guardando || !f.usuario || !ES_PIN.test(f.clave) || (pideSede && !f.sede_id)}
+        <button className="btn-guardar" disabled={guardando || !f.usuario || !claveOk || (pideSede && !f.sede_id)}
           onClick={() => onCrear({
             usuario: f.usuario, clave: f.clave, nombre, rol: f.rol,
             sede_id: pideSede ? f.sede_id : null, persona_id: persona.id,
+            puede_gastos: ofreceGastos ? f.puede_gastos : false,
           })}>
           {guardando ? 'Creando…' : 'Crear login'}
         </button>

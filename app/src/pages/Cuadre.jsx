@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/fetchAll'
 import { useAuth } from '../context/AuthContext'
-import { esGerencia } from '../lib/roles'
+import { puedeEditar } from '../lib/roles'
 
 const soles = (n) => n == null ? '—' : 'S/ ' + Number(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export default function Cuadre() {
   const { perfil } = useAuth()
-  const esAdmin = esGerencia(perfil)
+  // Validar y borrar cajas es EDITAR: superusuario y administrador. Gerencia solo mira.
+  const esAdmin = puedeEditar(perfil)
   const [turnos, setTurnos] = useState([])
   const [sedes, setSedes] = useState([])
   const [gastosCaja, setGastosCaja] = useState([])   // gastos de tienda (con fecha/sede del turno)

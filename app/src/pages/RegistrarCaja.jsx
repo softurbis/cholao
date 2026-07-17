@@ -5,7 +5,7 @@ import { textoDePdf } from '../lib/leerPdf'
 import { parseArqueo } from '../lib/parseArqueo'
 import { parseProductos, cruzarConStock } from '../lib/parseProductos'
 import { climaDe } from '../lib/clima'
-import { esGerencia } from '../lib/roles'
+import { puedeEditar } from '../lib/roles'
 
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -17,7 +17,7 @@ export default function RegistrarCaja() {
   // Borrar un turno se lleva sus comprobantes, que son justo la evidencia que
   // gerencia revisa al validar. La base ya lo impide para el resto (sql/21);
   // esto es para que la cajera no vea un botón que solo le daría un error.
-  const puedeBorrar = esGerencia(perfil)
+  const puedeBorrar = puedeEditar(perfil)
   // Quién firma el turno. Para la cajera es SU nombre y no se toca: el campo era
   // libre y quedaron 33 nombres distintos para 18 personas (Yamile firmó de 8
   // formas: "YAMILE", "YAM", "YAMI PAREDES"…, y 25 turnos salieron sin nadie).
@@ -25,7 +25,7 @@ export default function RegistrarCaja() {
   // de caja no controla nada.
   // Gerencia sí puede escribirlo: a veces registra un turno de otro o carga
   // atrasados, y ahí el nombre no es el suyo.
-  const puedeElegirCajero = esGerencia(perfil)
+  const puedeElegirCajero = puedeEditar(perfil)
   const [turno, setTurno] = useState(null)          // turno abierto (fila de caja_turno)
   const [sedes, setSedes] = useState([])
   const [personas, setPersonas] = useState([])

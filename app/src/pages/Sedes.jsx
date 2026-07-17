@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { esGerencia } from '../lib/roles'
+import { esSuper } from '../lib/roles'
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 // El código es lo que se guarda en caja_turno.turno; el nombre es lo que se lee.
@@ -17,7 +17,9 @@ const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
 export default function Sedes() {
   const { perfil } = useAuth()
-  const puedeEditar = esGerencia(perfil)
+  // Sedes es solo del superusuario (config del sistema). Aun así se gatea por si
+  // se abre la ruta a mano.
+  const puedeEditar = esSuper(perfil)
   const [sedes, setSedes] = useState([])
   const [turnos, setTurnos] = useState([])
   const [horario, setHorario] = useState([])

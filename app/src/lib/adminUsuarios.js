@@ -1,14 +1,20 @@
-// Puente con la Edge Function `admin-usuarios`.
+// Puente con la Edge Function que crea los logins.
 // Crear logins necesita la llave secreta, que no puede estar en el navegador:
 // por eso todo pasa por la función del servidor (supabase/functions/admin-usuarios).
+//
+// OJO: en Supabase la función se desplegó con el slug `quick-api` (así quedó al
+// crearla desde el dashboard). El nombre de la URL es lo que importa, no el
+// título. Si algún día la recreas con el nombre `admin-usuarios`, cambia esto.
 import { supabase } from './supabase'
+
+const FUNCION = 'quick-api'
 
 // supabase-js NO trae el mensaje del servidor cuando la respuesta es 4xx: deja
 // un genérico "Edge Function returned a non-2xx status code" y esconde el
 // cuerpo en error.context. Sin esto verías ese texto inútil en vez de
 // "El usuario marcelo ya existe".
 async function llamar(body) {
-  const { data, error } = await supabase.functions.invoke('admin-usuarios', { body })
+  const { data, error } = await supabase.functions.invoke(FUNCION, { body })
   if (error) {
     let msg = error.message
     try {

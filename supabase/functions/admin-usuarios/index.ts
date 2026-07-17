@@ -33,9 +33,9 @@ const USUARIO_OK = /^[a-z0-9][a-z0-9._-]{2,29}$/
 const PIN_OK = /^\d{6}$/
 const PIN_OBVIO = /^(\d)\1{5}$|^(012345|123456|234567|345678|456789|567890|654321|098765)$/
 
-// El superadmin y gerencia siguen usando su correo y una clave normal; solo el
-// personal de tienda usa PIN. Por eso la regla del PIN no se aplica a todos.
-const ROLES_PIN = ['encargado', 'cajera', 'compras', 'almacen']
+// El superusuario, admin y gerencia usan correo y clave normal; el personal de
+// tienda usa PIN. Por eso la regla del PIN no se aplica a todos.
+const ROLES_PIN = ['cajera', 'cocina', 'compras', 'encargado', 'almacen']
 
 function claveInvalida(clave: string, rol: string): string | null {
   if (clave.length < 6) return 'La clave debe tener al menos 6 caracteres'
@@ -45,13 +45,12 @@ function claveInvalida(clave: string, rol: string): string | null {
   return null
 }
 
-const ROLES = ['superadmin', 'gerente', 'encargado', 'compras', 'almacen', 'cajera']
+const ROLES = ['superadmin', 'admin', 'gerente', 'compras', 'cajera', 'cocina', 'encargado', 'almacen']
 
-// Solo estos dos trabajan en un local fijo. Gerencia ve todo, y compras (Juan)
-// y almacén son transversales: compran y reparten para las dos sedes. Atarlos a
-// una obligaría a inventarles un local. Debe coincidir con ROLES_CON_SEDE en
-// app/src/lib/roles.js.
-const ROLES_CON_SEDE = ['encargado', 'cajera']
+// Trabajan en un local fijo: cajera, cocina (arma la lista de SU sede) y el
+// encargado histórico. Gerencia/admin ven todo, y compras (Juan) y almacén son
+// transversales. Debe coincidir con ROLES_CON_SEDE en app/src/lib/roles.js.
+const ROLES_CON_SEDE = ['cajera', 'cocina', 'encargado']
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -105,6 +104,7 @@ Deno.serve(async (req) => {
     const rol = String(body.rol ?? '')
     const sede_id = body.sede_id ? String(body.sede_id) : null
     const persona_id = body.persona_id ? String(body.persona_id) : null
+    const puede_gastos = body.puede_gastos === true   // permiso extra (Fernanda)
 
     if (!USUARIO_OK.test(usuario)) {
       return json({ error: 'Usuario inválido: entre 3 y 30 caracteres, solo minúsculas, números, punto, guion o guion bajo, y debe empezar con letra o número.' }, 400)
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
     }
 
     const { error: ePerfil } = await admin.from('perfiles').insert({
-      id: creado.user.id, usuario, nombre, rol, sede_id, persona_id, activo: true,
+      id: creado.user.id, usuario, nombre, rol, sede_id, persona_id, activo: true, puede_gastos,
     })
     if (ePerfil) {
       // Sin perfil, el login existe pero no tiene rol: entraría a una app vacía
