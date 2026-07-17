@@ -1,4 +1,13 @@
 -- =====================================================================
+-- ⛔ HISTÓRICO — NO VOLVER A CORRER. Lo reemplaza 21_usuarios_permisos.sql.
+-- Este archivo le da a CUALQUIER usuario logueado acceso total a todo
+-- (policy `auth_all`). Servía cuando el único usuario era el superadmin.
+-- Desde que entra el personal, correrlo otra vez borraría los permisos por
+-- rol del sql/21 y dejaría a las cajeras viendo gastos, ventas y sueldos.
+-- Se conserva solo como referencia de por qué el sql/21 hace lo que hace.
+-- =====================================================================
+
+-- =====================================================================
 -- Sistema Cholao — Seguridad RLS (v10)  ⚠️ CRÍTICO antes de compartir el link
 -- Cierra la base: solo usuarios LOGUEADOS (authenticated) ven/editan datos.
 -- Sin login, la llave publishable no devuelve nada.

@@ -8,7 +8,8 @@ import { supabase, money, getSedeMap } from './lib.js'
 
 const args = process.argv.slice(2)
 const DRY = args.includes('--dry')
-const paths = args.filter((a) => a !== '--dry')
+const FORZAR = args.includes('--forzar')   // salta la salvaguarda anti-duplicado
+const paths = args.filter((a) => !a.startsWith('--'))
 
 const sedeDe = (nombre) => /miraflores/i.test(nombre) ? 'Miraflores' : /amazonas/i.test(nombre) ? 'Amazonas' : null
 const norm = (s) => String(s || '').trim().toLowerCase()
@@ -30,10 +31,19 @@ function cuadreTexto(rows, etiqueta) {
 }
 
 function parseHojaTurno(nombreHoja, rows) {
-  const m = nombreHoja.match(/(\d{2})-(\d{2})-(\d{4}).*(Manana|Mañana|Tarde|Noche)/i)
+  // El turno en el nombre de la hoja es OPCIONAL, y esa es la clave de este parser.
+  // Amazonas tiene 2 turnos y rotula "01-07-2026 Manana"; Miraflores tiene UNO SOLO
+  // y rotula "04-07-2026" a secas — no necesita distinguir lo que no se reparte.
+  // Antes el turno era obligatorio en el patrón, así que junio y julio enteros de
+  // Miraflores (46 hojas con venta) se saltaban en silencio: el archivo se
+  // "importaba" sin error y sin datos.
+  const m = nombreHoja.match(/(\d{2})-(\d{2})-(\d{4})(.*)$/)
   if (!m) return null
   const fecha = `${m[3]}-${m[2]}-${m[1]}`
-  const turno = /tarde/i.test(m[4]) ? 'tarde' : /noche/i.test(m[4]) ? 'noche' : 'manana'
+  const etiqueta = (m[4] || '').match(/(Manana|Mañana|Tarde|Noche)/i)
+  const turno = !etiqueta ? 'unico'
+    : /tarde/i.test(etiqueta[1]) ? 'tarde'
+    : /noche/i.test(etiqueta[1]) ? 'noche' : 'manana'
 
   // Cajero (fila con "Cajero:" o "Responsable:")
   let cajero = null
@@ -149,7 +159,23 @@ async function main() {
     const sedeId = sedes[(sedeNombre || '').toLowerCase()]
     if (!sedeId) { console.log('· (sin sede, omito)', file.split(/[\\/]/).pop()); continue }
     const turnos = parseArchivo(file)
+    let saltados = 0
     for (const t of turnos) {
+      // Salvaguarda contra el duplicado silencioso: el upsert casa por
+      // (sede, fecha, turno), así que un 'unico' NO colisiona con un 'manana' del
+      // mismo día — crearía un segundo turno y el día quedaría contado dos veces.
+      // Pasa de verdad: los libros nuevos arrastran las pestañas viejas rotuladas
+      // con turno, y las mismas fechas vienen sin rótulo en su libro propio.
+      // Es justo el error que infló febrero de Amazonas en S/ 46.000.
+      if (t.turno === 'unico' && !FORZAR) {
+        const { data: yaHay } = await supabase.from('caja_turno')
+          .select('turno').eq('sede_id', sedeId).eq('fecha', t.fecha).neq('turno', 'unico')
+        if (yaHay?.length) {
+          console.log(`   ⚠️  ${t.fecha}: ya existe como "${yaHay.map((x) => x.turno).join('/')}" — no lo duplico`)
+          saltados++
+          continue
+        }
+      }
       const { _gastos, _descuentos, _stock, ...cab } = t
       const { data, error } = await supabase.from('caja_turno')
         .upsert({ ...cab, sede_id: sedeId, origen_archivo: file.split(/[\\/]/).pop() }, { onConflict: 'sede_id,fecha,turno' })
@@ -164,7 +190,7 @@ async function main() {
       if (_stock.length) await supabase.from('caja_stock').insert(_stock.map(s => ({ ...s, turno_id: tid })))
       totalT++
     }
-    console.log(`✓ ${sedeNombre.padEnd(11)} ${file.split(/[\\/]/).pop().slice(0, 40).padEnd(40)} ${turnos.length} turnos`)
+    console.log(`✓ ${sedeNombre.padEnd(11)} ${file.split(/[\\/]/).pop().slice(0, 40).padEnd(40)} ${turnos.length - saltados}/${turnos.length} turnos${saltados ? ` (${saltados} ya estaban)` : ''}`)
   }
   console.log(`\n✓ TOTAL: ${totalT} turnos cargados`)
 }

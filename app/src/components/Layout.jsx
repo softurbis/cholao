@@ -1,29 +1,19 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { canAccess, ROLES } from '../lib/roles'
-
-const NAV = [
-  { key: 'dashboard', to: '/', label: 'Panel', icon: '📊' },
-  { key: 'registro', to: '/registrar-caja', label: 'Registrar Caja', icon: '✍️' },
-  { key: 'cuadre', to: '/cuadre', label: 'Caja Diaria', icon: '🧮' },
-  { key: 'config', to: '/config', label: 'Configuración', icon: '⚙️' },
-  { key: 'compras', to: '/compras', label: 'Compras', icon: '🛒' },
-  { key: 'asistencia', to: '/asistencia', label: 'Asistencia · Planilla', icon: '🕒' },
-  { key: 'ventas', to: '/ventas', label: 'Ventas', icon: '💵' },
-  { key: 'productos', to: '/productos', label: 'Productos', icon: '🍧' },
-  { key: 'gastos', to: '/gastos', label: 'Gastos', icon: '📉' },
-  { key: 'sedes', to: '/sedes', label: 'Sedes', icon: '🏪' },
-  { key: 'personas', to: '/personas', label: 'Personas', icon: '👥' },
-]
+import { canAccess, ROLES, MODULOS } from '../lib/roles'
 
 export default function Layout({ children }) {
   const { perfil, signOut } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const rol = perfil?.rol || 'superadmin'
+  // Sin perfil, sin rol. Antes decía `perfil?.rol || 'superadmin'`: si el perfil
+  // no cargaba, la app te trataba como superadmin y te pintaba el menú entero.
+  const rol = perfil?.rol || null
 
-  const items = NAV.filter((n) => n.key === 'dashboard' || canAccess(rol, n.key))
+  // El Panel ya no es la excepción. Antes iba `n.key === 'dashboard' || …`, que
+  // se lo mostraba a todos — incluida la cajera, que no debe ver el flujo.
+  const items = MODULOS.filter((n) => canAccess(rol, n.key))
 
   async function salir() {
     await signOut()
@@ -52,7 +42,7 @@ export default function Layout({ children }) {
         <div className="sidebar-pie">
           <div className="usuario">
             <strong>{perfil?.nombre || 'Usuario'}</strong>
-            <small>{ROLES[rol] || rol}{perfil?.sede ? ` · ${perfil.sede.nombre}` : ''}</small>
+            <small>{ROLES[rol] || rol || 'Sin rol'}{perfil?.sede ? ` · ${perfil.sede.nombre}` : ''}</small>
           </div>
           <button className="btn-salir" onClick={salir}>Salir</button>
         </div>

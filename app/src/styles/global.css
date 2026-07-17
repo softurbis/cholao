@@ -42,8 +42,25 @@ body {
 .login-sub { margin: 2px 0 20px; color: var(--gris); font-size: 14px; }
 .login-caja form { display: grid; gap: 12px; }
 .login-caja input {
-  padding: 12px 14px; border: 1px solid var(--linea); border-radius: 10px; font-size: 15px;
+  padding: 12px 14px; border: 1px solid var(--linea); border-radius: 10px;
   font-family: inherit;
+  /* 16px como MÍNIMO, no por estética: si baja de ahí, Safari en iPhone hace
+     zoom solo al tocar el campo y descuadra la pantalla. Esto se usa desde el
+     celular de la tienda, así que importa. */
+  font-size: 16px;
+}
+/* El PIN son 6 números que se teclean rápido y a veces con el local lleno:
+   grandes, separados y centrados para no equivocarse. */
+.login-pin {
+  text-align: center; font-size: 26px !important; letter-spacing: 8px;
+  font-weight: 700; padding: 14px !important;
+}
+.login-pin::placeholder { font-size: 15px; letter-spacing: normal; font-weight: 400; }
+/* Quién está entrando, cuando el celular ya lo recuerda */
+.login-quien {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--gris-claro, #f4f4f5); border-radius: 10px; padding: 10px 12px;
+  font-size: 15px;
 }
 .login-caja input:focus { outline: 2px solid var(--rojo); border-color: transparent; }
 .login-caja button {

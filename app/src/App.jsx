@@ -28,7 +28,9 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Privado><Dashboard /></Privado>} />
+        {/* El Panel muestra ingresos, gastos y flujo: NO es para todos. Antes iba
+            sin `module`, así que cualquiera con sesión lo abría. */}
+        <Route path="/" element={<Privado module="dashboard"><Dashboard /></Privado>} />
         <Route path="/registrar-caja" element={<Privado module="registro"><RegistrarCaja /></Privado>} />
         <Route path="/config" element={<Privado module="config"><Config /></Privado>} />
         <Route path="/cuadre" element={<Privado module="cuadre"><Cuadre /></Privado>} />

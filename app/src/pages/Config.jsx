@@ -9,22 +9,31 @@ export default function Config() {
   const [sedes, setSedes] = useState([])
   const [prods, setProds] = useState([])
   const [metas, setMetas] = useState([])
+  const [turnos, setTurnos] = useState([])
   const [invDias, setInvDias] = useState([])
   const [sedeMeta, setSedeMeta] = useState('')
   const [nuevo, setNuevo] = useState({ nombre: '', stock_minimo: '' })
 
   async function cargar() {
-    const [{ data: s }, { data: p }, { data: m }, { data: c }] = await Promise.all([
+    const [{ data: s }, { data: p }, { data: m }, { data: c }, { data: t }] = await Promise.all([
       supabase.from('sedes').select('id, nombre').order('nombre'),
       supabase.from('productos_stock').select('*').order('orden'),
       supabase.from('caja_metas').select('*'),
       supabase.from('config').select('*').eq('clave', 'inventario_dias').maybeSingle(),
+      supabase.from('sede_turnos').select('*').eq('activo', true).order('orden'),
     ])
     setSedes(s || []); setProds(p || []); setMetas(m || [])
+    setTurnos(t || [])
     setInvDias(c?.valor || [])
     if (s?.[0] && !sedeMeta) setSedeMeta(s[0].id)
   }
   useEffect(() => { cargar() }, [])
+
+  // Las columnas salen de los turnos QUE TRABAJA la sede, no de dos fijas.
+  // Antes esta tabla tenía "Meta Mañana" y "Meta Tarde" cableadas, así que a
+  // Miraflores —que trabaja un solo turno— le pedía una meta de tarde que no
+  // existe, y a una sede con 3 turnos no habría dónde ponérsela.
+  const turnosSede = turnos.filter((t) => t.sede_id === sedeMeta)
 
   async function addProd() {
     if (!nuevo.nombre.trim()) return
@@ -34,12 +43,12 @@ export default function Config() {
   async function delProd(id) { if (confirm('¿Quitar producto?')) { await supabase.from('productos_stock').delete().eq('id', id); cargar() } }
 
   async function setMeta(dia, turno, valor) {
-    const existe = metas.find((m) => m.sede_id === sedeMeta && m.dia_semana === dia && m.turno === turno)
-    if (existe) await supabase.from('caja_metas').update({ meta: Number(valor) || 0 }).eq('id', existe.id)
-    else await supabase.from('caja_metas').insert({ sede_id: sedeMeta, dia_semana: dia, turno, meta: Number(valor) || 0 })
+    const existe = metas.find((m) => m.sede_id === sedeMeta && m.dia_semana === dia && m.turno === turno.codigo)
+    if (existe) await supabase.from('caja_metas').update({ meta: Number(valor) || 0, turno_id: turno.id }).eq('id', existe.id)
+    else await supabase.from('caja_metas').insert({ sede_id: sedeMeta, dia_semana: dia, turno: turno.codigo, turno_id: turno.id, meta: Number(valor) || 0 })
     cargar()
   }
-  const metaVal = (dia, turno) => metas.find((m) => m.sede_id === sedeMeta && m.dia_semana === dia && m.turno === turno)?.meta ?? ''
+  const metaVal = (dia, turno) => metas.find((m) => m.sede_id === sedeMeta && m.dia_semana === dia && m.turno === turno.codigo)?.meta ?? ''
 
   async function toggleDia(dia) {
     const nuevos = invDias.includes(dia) ? invDias.filter((d) => d !== dia) : [...invDias, dia]
@@ -79,19 +88,35 @@ export default function Config() {
         <div className="form-inline">
           <select value={sedeMeta} onChange={(e) => setSedeMeta(e.target.value)}>{sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select>
         </div>
-        <table className="tabla">
-          <thead><tr><th>Día</th><th>Meta Mañana</th><th>Meta Tarde</th></tr></thead>
-          <tbody>
-            {DIAS.map((d) => (
-              <tr key={d}>
-                <td><strong>{d}</strong></td>
-                <td><input type="number" defaultValue={metaVal(d, 'manana')} onBlur={(e) => setMeta(d, 'manana', e.target.value)} className="in-num" style={{ maxWidth: 130 }} /></td>
-                <td><input type="number" defaultValue={metaVal(d, 'tarde')} onBlur={(e) => setMeta(d, 'tarde', e.target.value)} className="in-num" style={{ maxWidth: 130 }} /></td>
+        {turnosSede.length === 0 ? (
+          <div className="bloque-vacio">
+            <p>Esta sede no tiene turnos configurados, así que no hay dónde poner la meta.</p>
+            <p className="nota">Configúralos en <strong>Sedes → 🕒 Turnos y horario</strong>.</p>
+          </div>
+        ) : (<>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Día</th>
+                {turnosSede.map((t) => <th key={t.id}>Meta {t.nombre}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="nota">Se guarda al salir de cada casilla.</p>
+            </thead>
+            <tbody>
+              {DIAS.map((d) => (
+                <tr key={d}>
+                  <td><strong>{d}</strong></td>
+                  {turnosSede.map((t) => (
+                    <td key={t.id}>
+                      <input type="number" defaultValue={metaVal(d, t)} onBlur={(e) => setMeta(d, t, e.target.value)}
+                        className="in-num" style={{ maxWidth: 130 }} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="nota">Se guarda al salir de cada casilla. Las columnas son los turnos que trabaja esta sede.</p>
+        </>)}
       </>)}
 
       {tab === 'inventario' && (<>

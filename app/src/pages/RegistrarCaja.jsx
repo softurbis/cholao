@@ -5,6 +5,7 @@ import { textoDePdf } from '../lib/leerPdf'
 import { parseArqueo } from '../lib/parseArqueo'
 import { parseProductos, cruzarConStock } from '../lib/parseProductos'
 import { climaDe } from '../lib/clima'
+import { esGerencia } from '../lib/roles'
 
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -13,6 +14,18 @@ const n = (v) => Number(v) || 0
 
 export default function RegistrarCaja() {
   const { perfil } = useAuth()
+  // Borrar un turno se lleva sus comprobantes, que son justo la evidencia que
+  // gerencia revisa al validar. La base ya lo impide para el resto (sql/21);
+  // esto es para que la cajera no vea un botón que solo le daría un error.
+  const puedeBorrar = esGerencia(perfil)
+  // Quién firma el turno. Para la cajera es SU nombre y no se toca: el campo era
+  // libre y quedaron 33 nombres distintos para 18 personas (Yamile firmó de 8
+  // formas: "YAMILE", "YAM", "YAMI PAREDES"…, y 25 turnos salieron sin nadie).
+  // Con eso, saber quién cuadró una caja era imposible — y sin eso el control
+  // de caja no controla nada.
+  // Gerencia sí puede escribirlo: a veces registra un turno de otro o carga
+  // atrasados, y ahí el nombre no es el suyo.
+  const puedeElegirCajero = esGerencia(perfil)
   const [turno, setTurno] = useState(null)          // turno abierto (fila de caja_turno)
   const [sedes, setSedes] = useState([])
   const [personas, setPersonas] = useState([])
@@ -31,7 +44,11 @@ export default function RegistrarCaja() {
   const [pendientes, setPendientes] = useState([]) // traslados que otra sede me envió
 
   // apertura
-  const [ap, setAp] = useState({ sede_id: '', fecha: fmt(new Date()), turno: 'manana', cajero: '', base_inicial: '' })
+  // Sin turno por defecto: lo pone la sede cuando se elige (ver el efecto de
+  // abajo). El default 'manana' de antes era el turno equivocado en cualquier
+  // sede que no trabaje mañanas.
+  const [ap, setAp] = useState({ sede_id: '', fecha: fmt(new Date()), turno: '', cajero: '', base_inicial: '' })
+  const [sedeTurnos, setSedeTurnos] = useState([])
   const [stockIni, setStockIni] = useState([])
 
   // cierre
@@ -47,15 +64,45 @@ export default function RegistrarCaja() {
 
   const aviso = (tipo, texto) => { setMsg({ tipo, texto }); setTimeout(() => setMsg(null), 5000) }
 
+  // Los turnos que trabaja la sede elegida, en su orden.
+  const turnosSede = useMemo(
+    () => sedeTurnos.filter((t) => t.sede_id === ap.sede_id).sort((a, b) => a.orden - b.orden),
+    [sedeTurnos, ap.sede_id]
+  )
+
+  // Cómo se llama un turno, según la sede. Se busca por código porque eso es lo
+  // que guarda caja_turno.turno. Si no está configurado (turnos históricos como
+  // las letras viejas), se muestra el código crudo en vez de mentir con "Tarde".
+  const nombreTurno = (codigo, sedeId) =>
+    sedeTurnos.find((t) => t.sede_id === (sedeId || ap.sede_id) && t.codigo === codigo)?.nombre || codigo
+
+  // Al cambiar de sede, el turno elegido puede no existir ahí (Amazonas trabaja
+  // 'tarde', Miraflores no). Se preselecciona el que toca por la hora: si son
+  // las 4pm, el turno de tarde. Eso es un toque menos en el celular y, sobre
+  // todo, evita el error de etiqueta — que es justo el que ensució el histórico.
+  useEffect(() => {
+    if (!turnosSede.length) return
+    if (turnosSede.some((t) => t.codigo === ap.turno)) return   // el actual sirve
+    const ahora = new Date().toTimeString().slice(0, 5)
+    const porHora = turnosSede.find((t) => t.hora_inicio && t.hora_fin
+      && String(t.hora_inicio).slice(0, 5) <= ahora && ahora < String(t.hora_fin).slice(0, 5))
+    setAp((a) => ({ ...a, turno: (porHora || turnosSede[0]).codigo }))
+  }, [turnosSede])   // eslint-disable-line react-hooks/exhaustive-deps
+
   async function cargarTodo() {
-    const [{ data: s }, { data: p }, { data: tg }, { data: pc }, { data: m }] = await Promise.all([
+    const [{ data: s }, { data: p }, { data: tg }, { data: pc }, { data: m }, { data: st }] = await Promise.all([
       supabase.from('sedes').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('personas').select('nombres').eq('activo', true).order('nombres'),
+      // vista_personal y no `personas`: esa tabla lleva sueldo_base y quedó solo
+      // para gerencia (sql/21). La vista trae lo mismo sin el sueldo, que es lo
+      // único que hace falta acá — poner nombres en los adelantos.
+      supabase.from('vista_personal').select('nombres').eq('activo', true).order('nombres'),
       supabase.from('tipos_gasto').select('*').eq('activo', true).order('veces', { ascending: false }),
       supabase.from('productos_stock').select('*').eq('activo', true).order('orden'),
       supabase.from('caja_metas').select('*'),
+      supabase.from('sede_turnos').select('*').eq('activo', true).order('orden'),
     ])
     setSedes(s || []); setPersonas(p || []); setTiposGasto(tg || []); setProdCat(pc || []); setMetas(m || [])
+    setSedeTurnos(st || [])
     const sedeDef = perfil?.sede?.id || s?.[0]?.id || ''
     setAp((a) => ({ ...a, sede_id: a.sede_id || sedeDef, cajero: a.cajero || perfil?.nombre || '' }))
 
@@ -202,12 +249,19 @@ export default function RegistrarCaja() {
 
   // ---------- FASE 1: APERTURA ----------
   async function abrirCaja() {
-    if (!ap.sede_id || !ap.cajero) { aviso('err', 'Falta sede o cajero'); return }
+    // El cajero se toma del perfil, no del formulario, salvo que sea gerencia
+    // registrando por otro. Así no depende de lo que se haya tecleado —ni de que
+    // se haya tecleado algo: 25 turnos históricos quedaron sin cajero.
+    const cajero = (puedeElegirCajero ? ap.cajero : perfil?.nombre)?.trim()
+    if (!ap.sede_id || !cajero) { aviso('err', 'Falta sede o cajero'); return }
+    if (!ap.turno) { aviso('err', 'Esta sede no tiene turnos configurados. Configúralos en Sedes.'); return }
     const sinMotivo = stockIni.filter((s) => s.esperado != null && s.inicio !== '' && n(s.inicio) !== s.esperado && !s.motivo)
     if (sinMotivo.length) { aviso('err', 'Indica el motivo de la diferencia en: ' + sinMotivo.map((s) => s.producto).join(', ')); return }
     setOcupado(true)
     const { data, error } = await supabase.from('caja_turno').upsert({
-      sede_id: ap.sede_id, fecha: ap.fecha, turno: ap.turno, cajero: ap.cajero,
+      sede_id: ap.sede_id, fecha: ap.fecha, turno: ap.turno, cajero,
+      // El turno queda enlazado a la config de la sede, no solo a la etiqueta.
+      turno_id: turnosSede.find((t) => t.codigo === ap.turno)?.id || null,
       base_inicial: n(ap.base_inicial), estado: 'abierto', abierto_en: new Date().toISOString(),
       abierto_por: perfil?.id || null, origen_archivo: 'registro-app',
     }, { onConflict: 'sede_id,fecha,turno' }).select().single()
@@ -309,7 +363,7 @@ export default function RegistrarCaja() {
   function enviarWsp() {
     const txt = [
       `*CIERRE DE CAJA — ${turno.sede?.nombre || ''}*`,
-      `${turno.fecha} · ${turno.turno === 'manana' ? 'Mañana' : 'Tarde'} · ${turno.cajero}`,
+      `${turno.fecha} · ${nombreTurno(turno.turno, turno.sede_id)} · ${turno.cajero}`,
       ``,
       `Venta del sistema: ${soles(arqueo?.venta_sistema)}`,
       `Efectivo: ${soles(arqueo?.sis_efectivo)} | Tarjeta: ${soles(arqueo?.sis_tarjeta)} | Yape: ${soles(arqueo?.sis_yape)}`,
@@ -408,8 +462,35 @@ export default function RegistrarCaja() {
         <div className="filtros">
           <label className="campo"><span>Sede</span><select value={ap.sede_id} onChange={(e) => setAp({ ...ap, sede_id: e.target.value })}>{sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
           <label className="campo"><span>Fecha</span><input type="date" value={ap.fecha} onChange={(e) => setAp({ ...ap, fecha: e.target.value })} /></label>
-          <label className="campo"><span>Turno</span><select value={ap.turno} onChange={(e) => setAp({ ...ap, turno: e.target.value })}><option value="manana">Mañana (1er turno)</option><option value="tarde">Tarde (2do turno)</option></select></label>
-          <label className="campo"><span>Cajero</span><input value={ap.cajero} onChange={(e) => setAp({ ...ap, cajero: e.target.value })} /></label>
+          {/* Los turnos salen de la sede (sql/22), no de dos opciones fijas.
+              Antes esto ofrecía siempre Mañana/Tarde: en Miraflores, que trabaja
+              un turno solo, elegir "Mañana" era elegir un turno inexistente. */}
+          <label className="campo"><span>Turno</span>
+            <select value={ap.turno} onChange={(e) => setAp({ ...ap, turno: e.target.value })}
+              disabled={turnosSede.length <= 1}>
+              {turnosSede.map((t, i) => (
+                <option key={t.id} value={t.codigo}>
+                  {t.nombre}{turnosSede.length > 1 ? ` (${i + 1}º turno)` : ''}
+                  {t.hora_inicio ? ` · ${String(t.hora_inicio).slice(0, 5)}` : ''}
+                </option>
+              ))}
+              {!turnosSede.length && <option value="">— sin turnos configurados —</option>}
+            </select>
+          </label>
+          <label className="campo"><span>Cajero</span>
+            {puedeElegirCajero ? (
+              <input value={ap.cajero} onChange={(e) => setAp({ ...ap, cajero: e.target.value })}
+                list="lista-personal" placeholder="Quién cuadra esta caja" />
+            ) : (
+              // No es un input deshabilitado por capricho: es tu turno y lo
+              // firmas tú. Si hace falta que lo firme otro, que lo abra con su
+              // usuario — que es justo el punto del PIN.
+              <input value={perfil?.nombre || ''} readOnly title="Se firma con tu usuario" />
+            )}
+          </label>
+          <datalist id="lista-personal">
+            {personas.map((p) => <option key={p.nombres} value={p.nombres} />)}
+          </datalist>
           <label className="campo"><span>Base de caja (S/)</span><input type="number" value={ap.base_inicial} onChange={(e) => setAp({ ...ap, base_inicial: e.target.value })} /></label>
         </div>
 
@@ -457,7 +538,7 @@ export default function RegistrarCaja() {
       {turno && fase === 'turno' && (<>
         <h1>Turno abierto <span className="titulo-tag">{turno.sede?.nombre}</span></h1>
         <p className="pagina-sub">
-          {turno.cajero} · {turno.fecha} · {turno.turno === 'manana' ? 'Mañana' : 'Tarde'} · Base {soles(turno.base_inicial)}
+          {turno.cajero} · {turno.fecha} · {nombreTurno(turno.turno, turno.sede_id)} · Base {soles(turno.base_inicial)}
           {meta ? ` · Meta ${soles(meta)}` : ''}
         </p>
         <div className="dos-cols">
@@ -520,14 +601,14 @@ export default function RegistrarCaja() {
 
         <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn-guardar" onClick={() => setFase('cierre')}>➡️ Ir al cierre</button>
-          <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado}>🗑️ Eliminar turno</button>
+          {puedeBorrar && <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado}>🗑️ Eliminar turno</button>}
         </div>
       </>)}
 
       {/* ---------------- FASE 3 ---------------- */}
       {turno && fase === 'cierre' && (<>
         <h1>Cierre de turno</h1>
-        <p className="pagina-sub">{turno.cajero} · {turno.fecha} · {turno.turno === 'manana' ? 'Mañana' : 'Tarde'}</p>
+        <p className="pagina-sub">{turno.cajero} · {turno.fecha} · {nombreTurno(turno.turno, turno.sede_id)}</p>
 
         {/* --- 3 documentos obligatorios --- */}
         <div className="seccion" style={{ marginBottom: 16 }}>
@@ -655,7 +736,7 @@ export default function RegistrarCaja() {
           <button className="btn-guardar" onClick={cerrarTurno} disabled={ocupado || !listo} title={listo ? '' : 'Faltan: ' + faltantes.join(', ')}>{ocupado ? 'Cerrando…' : '🔒 Cerrar turno'}</button>
           <button className="btn-mini" onClick={() => window.print()}>🖨️ PDF / Captura</button>
           <button className="btn-wsp" onClick={enviarWsp} disabled={!arqueo}>💬 Enviar por WhatsApp</button>
-          <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado} style={{ marginLeft: 'auto' }}>🗑️ Eliminar turno</button>
+          {puedeBorrar && <button className="btn-mini btn-peligro" onClick={eliminarTurno} disabled={ocupado} style={{ marginLeft: 'auto' }}>🗑️ Eliminar turno</button>}
         </div>
       </>)}
     </div>

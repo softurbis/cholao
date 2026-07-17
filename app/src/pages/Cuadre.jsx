@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/fetchAll'
 import { useAuth } from '../context/AuthContext'
+import { esGerencia } from '../lib/roles'
 
 const soles = (n) => n == null ? '—' : 'S/ ' + Number(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export default function Cuadre() {
   const { perfil } = useAuth()
-  const esAdmin = !perfil || perfil.rol === 'superadmin' || perfil.rol === 'gerente'
+  const esAdmin = esGerencia(perfil)
   const [turnos, setTurnos] = useState([])
   const [sedes, setSedes] = useState([])
   const [gastosCaja, setGastosCaja] = useState([])   // gastos de tienda (con fecha/sede del turno)
