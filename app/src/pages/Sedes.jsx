@@ -210,7 +210,7 @@ function PanelSede({ sede, turnos, horario, puedeEditar, onCambio, onError }) {
   }
 
   return (
-    <div className="arqueo-box">
+    <div className="panel-detalle">
       <h3>🕒 {sede.nombre} — turnos y horario</h3>
 
       <h4 className="sub-titulo">Turnos que trabaja</h4>
@@ -273,7 +273,7 @@ function PanelSede({ sede, turnos, horario, puedeEditar, onCambio, onError }) {
       </p>
 
       {activos.map((t) => (
-        <div key={t.id} style={{ marginTop: 14 }}>
+        <div key={t.id} className="horario-turno">
           <p className="t-label"><strong>{t.nombre}</strong></p>
           <table className="tabla">
             <thead><tr><th>Día</th><th>Abre</th><th>Cierra</th><th>¿Atiende?</th></tr></thead>

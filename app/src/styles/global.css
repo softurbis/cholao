@@ -267,6 +267,19 @@ body {
   margin-top: 12px; padding: 14px; background: #fafbfc; border: 1px solid var(--linea); border-radius: 10px;
 }
 .arqueo-box > div { display: grid; gap: 2px; font-size: 15px; }
+
+/* Panel de detalle apilado (turnos/horario de una sede). NO usar .arqueo-box:
+   esa es una grilla de columnas para las tarjetas del cierre, y aquí todo debe
+   ir en bloque, uno debajo del otro. */
+.panel-detalle {
+  margin-top: 12px; padding: 16px 18px; background: #fafbfc;
+  border: 1px solid var(--linea); border-radius: 10px;
+}
+.panel-detalle > * { max-width: 100%; }
+.panel-detalle .tabla { margin-top: 6px; }
+.panel-detalle .form-inline { margin-top: 10px; }
+/* Cada bloque de horario (Mañana / Tarde) va completo y separado del siguiente. */
+.panel-detalle .horario-turno { margin-top: 16px; }
 .arqueo-box small { color: var(--gris); font-size: 11.5px; }
 
 /* Comprobantes del turno (revisión del admin) */
