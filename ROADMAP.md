@@ -15,9 +15,17 @@
    el consolidado sume solo las listas ENVIADAS. **Ya está commiteado el frontend que lo
    usa, pero NO desplegado** (producción sigue con la lista de cocina vieja). Después de
    correrlo: `bash deploy.sh` + commit + push, y verificar el flujo cocina→enviar→Juan.
-2. ⬜ **Formulario de compras de Juan** (la última pieza operativa de compras): subir
-   voucher y marcar qué productos cubre (y los que van sin comprobante). Fácil en celular.
-   OJO: `compras.total` es columna GENERADA → pedir cantidad + precio, NO total.
+   ⚠️ **El deploy del formulario de compras (punto 2) va JUNTO con esto** — `deploy.sh`
+   empaqueta todo el working tree, incluida la lista de cocina rebuild que necesita sql/27.
+   No desplegar sin correr sql/27 primero.
+2. 🔨 **Formulario de compras de Juan** — HECHO en código (`Compras.jsx`, pestaña
+   "Compras" → `FormCompra`), **falta desplegar** (ver punto 1). Flujo "al revés" como
+   Gastos: PASO 1 voucher o "sin comprobante — en efectivo" · PASO 2 fecha/proveedor/
+   destino/medio/N° comprobante · PASO 3 varios productos (cada uno cantidad + precio,
+   subtotal y total en vivo). Un voucher cubre VARIOS productos → una fila de `compras`
+   por producto compartiendo voucher/comprobante/proveedor/fecha. `compras.total` NO se
+   inserta (es GENERADA cantidad×precio). La lista de compras ahora muestra 📎 para ver el
+   voucher. Build OK; sin verificar en navegador (pantalla con login de Juan).
 
 **SQL corridos:** 01→26. **Pendiente:** sql/27.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
@@ -83,7 +91,8 @@ dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 ## ⬜ PENDIENTES
 
 ### A · Lo próximo (compras de Juan)
-1. ⬜ **Formulario de compras de Juan** con voucher + selección de productos que cubre.
+1. 🔨 **Formulario de compras de Juan** con voucher + selección de productos que cubre —
+   HECHO en código, falta correr sql/27 y desplegar (ver PENDIENTE INMEDIATO arriba).
 2. ⬜ Al usar el +/− de la lista de cocina en celular con señal mala puede sentirse lento
    (guarda por toque). Si molesta, optimizar a guardado en lote.
 

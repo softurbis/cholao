@@ -79,10 +79,20 @@ export default function Compras() {
     setCatProv((prov || []).map((x) => x.nombre))
   }
 
+  // Recarga solo las compras (tras registrar una nueva desde el formulario).
+  async function cargarCompras() {
+    const c = await fetchAll('compras', 'id, fecha, nombre_libre, cantidad, unidad, precio_unitario, total, proveedor, destino_sede_id, comprobante, voucher_url')
+    setCompras(c)
+  }
+  async function verVoucher(ruta) {
+    const { data } = await supabase.storage.from('arqueos').createSignedUrl(ruta, 3600)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
   useEffect(() => {
     (async () => {
       const [c, e, f, { data: s }] = await Promise.all([
-        fetchAll('compras', 'id, fecha, nombre_libre, cantidad, unidad, precio_unitario, total, proveedor, destino_sede_id, comprobante'),
+        fetchAll('compras', 'id, fecha, nombre_libre, cantidad, unidad, precio_unitario, total, proveedor, destino_sede_id, comprobante, voucher_url'),
         fetchAll('entregas', 'id, fecha, producto, cantidad, presentacion, sede_id, total'),
         fetchAll('fondo_compras_dia', '*'),
         supabase.from('sedes').select('id, nombre').order('nombre'),
@@ -204,6 +214,13 @@ export default function Compras() {
       )}
 
       {vista === 'compras' && (<>
+        {esAdmin && (
+          <FormCompra
+            perfil={perfil} catalogo={catalogo} sedes={sedes} catProv={catProv}
+            onCrearProv={() => crearEnCatalogo('proveedores', setCatProv)}
+            onListo={cargarCompras}
+          />
+        )}
         <table className="tabla">
           <thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Proveedor</th><th>Monto</th><th>Sede</th><th>Comp.</th>{esAdmin && <th></th>}</tr></thead>
           <tbody>
@@ -226,7 +243,9 @@ export default function Compras() {
                 <td>{x.proveedor || '—'}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>{soles(x.total)}</td>
                 <td>{sedeN[x.destino_sede_id] || 'Oficina'}</td>
-                <td className="nota">{x.comprobante || '—'}</td>
+                <td className="nota">{x.voucher_url
+                  ? <button className="btn-mini" title="Ver voucher" onClick={() => verVoucher(x.voucher_url)}>📎 {x.comprobante || 'Ver'}</button>
+                  : (x.comprobante || '—')}</td>
                 {esAdmin && <td><button className="btn-mini" title="Editar" onClick={() => iniciarEdit('compras', x)}>✏️</button></td>}
               </tr>
             ))}
@@ -300,6 +319,161 @@ export default function Compras() {
       {vista === 'pedidos' && (
         <PedidosTab catalogo={catalogo} perfil={perfil} esAdmin={esAdmin} />
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Registrar una compra de Juan. Igual que Gastos: PRIMERO el comprobante
+// (voucher o "en efectivo, sin comprobante"), LUEGO los datos. Un solo voucher
+// puede cubrir VARIOS productos → cada producto se guarda como una fila de
+// `compras`, todas con el mismo voucher/comprobante/proveedor/fecha.
+// OJO: `compras.total` es GENERADA (cantidad × precio) — se manda cantidad y
+// precio_unitario, NUNCA el total.
+const MEDIOS_COMPRA = ['efectivo', 'yape', 'transferencia', 'tarjeta', 'otro']
+
+function FormCompra({ perfil, catalogo, sedes, catProv, onCrearProv, onListo }) {
+  const cabVacia = { fecha: fmt(new Date()), proveedor: '', destino_sede_id: '', medio_pago: 'efectivo', comprobante: '' }
+  const [cab, setCab] = useState(cabVacia)
+  const [file, setFile] = useState(null)
+  const [efectivo, setEfectivo] = useState(false)   // sin comprobante
+  const [lineas, setLineas] = useState([])           // productos que cubre este voucher
+  const [nueva, setNueva] = useState({ producto_id: '', cantidad: '', precio: '' })
+  const [ocupado, setOcupado] = useState(false)
+  const [error, setError] = useState('')
+
+  const prodActivos = useMemo(() => catalogo.filter((p) => p.activo), [catalogo])
+  const prodN = useMemo(() => Object.fromEntries(catalogo.map((p) => [p.id, p])), [catalogo])
+  // Paso 1 listo: hay voucher o se marcó "en efectivo".
+  const paso1 = !!file || efectivo
+  const totalCompra = lineas.reduce((a, l) => a + Number(l.cantidad || 0) * Number(l.precio || 0), 0)
+
+  function agregarLinea() {
+    setError('')
+    const p = prodN[nueva.producto_id]
+    if (!p) return setError('Elige un producto.')
+    if (!(Number(nueva.cantidad) > 0)) return setError('La cantidad debe ser mayor a 0.')
+    if (!(Number(nueva.precio) > 0)) return setError('El precio debe ser mayor a 0.')
+    setLineas((L) => [...L, { producto_id: p.id, nombre: p.nombre, unidad: p.unidad, cantidad: Number(nueva.cantidad), precio: Number(nueva.precio) }])
+    setNueva({ producto_id: '', cantidad: '', precio: '' })
+  }
+  function quitarLinea(i) { setLineas((L) => L.filter((_, j) => j !== i)) }
+
+  async function guardar() {
+    if (!lineas.length) return setError('Agrega al menos un producto que cubre esta compra.')
+    setOcupado(true); setError('')
+
+    let voucher_url = null
+    if (file && !efectivo) {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const ruta = `compras/${cab.fecha}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
+      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined })
+      if (eUp) { setError('No pude subir el voucher: ' + eUp.message); setOcupado(false); return }
+      voucher_url = ruta
+    }
+
+    // Una fila por producto — comparten voucher/comprobante/proveedor/fecha.
+    const filas = lineas.map((l) => ({
+      fecha: cab.fecha,
+      producto_id: l.producto_id,
+      nombre_libre: l.nombre,
+      cantidad: l.cantidad,
+      unidad: l.unidad,
+      precio_unitario: l.precio,             // total = cantidad × precio (GENERADA)
+      proveedor: cab.proveedor || null,
+      destino_sede_id: cab.destino_sede_id || null,
+      medio_pago: efectivo ? 'efectivo' : cab.medio_pago,
+      comprobante: efectivo ? 'EFECTIVO' : (cab.comprobante.trim().toUpperCase() || (voucher_url ? 'VOUCHER' : null)),
+      voucher_url,
+      registrado_por: perfil?.id || null,
+    }))
+    const { error: eIns } = await supabase.from('compras').insert(filas)
+    setOcupado(false)
+    if (eIns) return setError(eIns.message)
+    setCab({ ...cabVacia, fecha: cab.fecha }); setFile(null); setEfectivo(false); setLineas([])
+    onListo()
+  }
+
+  return (
+    <div className="panel-detalle">
+      <h3>➕ Registrar compra</h3>
+      {error && <div className="alerta">{error}</div>}
+
+      {/* PASO 1 — comprobante primero */}
+      <div className="paso-voucher">
+        <span className="t-label">1 · Comprobante</span>
+        {!efectivo && (
+          <label className="campo">
+            <span>Voucher / foto de la boleta o factura</span>
+            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          </label>
+        )}
+        {file && !efectivo && <p className="nota">📎 {file.name}</p>}
+        <label className="check-permiso" style={{ marginTop: 8 }}>
+          <input type="checkbox" checked={efectivo} onChange={(e) => { setEfectivo(e.target.checked); if (e.target.checked) setFile(null) }} />
+          <span><b>Sin comprobante — en efectivo</b>. Se registra sin voucher y marcado como pago en efectivo.</span>
+        </label>
+      </div>
+
+      {/* PASO 2 — datos de la compra */}
+      <div style={{ opacity: paso1 ? 1 : .5, pointerEvents: paso1 ? 'auto' : 'none', marginTop: 6 }}>
+        <span className="t-label">2 · Datos de la compra</span>
+        <div className="filtros">
+          <label className="campo"><span>Fecha</span>
+            <input type="date" value={cab.fecha} onChange={(e) => setCab({ ...cab, fecha: e.target.value })} /></label>
+          <label className="campo"><span>Proveedor</span>
+            <SelectCat value={cab.proveedor} opciones={catProv} placeholder="Proveedor…"
+              onChange={(v) => setCab({ ...cab, proveedor: v })} onCrear={onCrearProv} /></label>
+          <label className="campo"><span>Destino</span>
+            <select value={cab.destino_sede_id} onChange={(e) => setCab({ ...cab, destino_sede_id: e.target.value })}>
+              <option value="">Oficina / almacén</option>
+              {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select></label>
+          {!efectivo && (<>
+            <label className="campo"><span>Medio</span>
+              <select value={cab.medio_pago} onChange={(e) => setCab({ ...cab, medio_pago: e.target.value })}>
+                {MEDIOS_COMPRA.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select></label>
+            <label className="campo"><span>N° comprobante</span>
+              <input value={cab.comprobante} placeholder="F001-123 / boleta…" onChange={(e) => setCab({ ...cab, comprobante: e.target.value })} /></label>
+          </>)}
+        </div>
+
+        {/* PASO 3 — productos que cubre */}
+        <span className="t-label" style={{ marginTop: 10, display: 'block' }}>3 · Productos que cubre</span>
+        {lineas.length > 0 && (
+          <table className="tabla" style={{ marginBottom: 8 }}>
+            <thead><tr><th>Producto</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th><th></th></tr></thead>
+            <tbody>
+              {lineas.map((l, i) => (
+                <tr key={i}>
+                  <td><strong>{l.nombre}</strong> <span className="nota">{l.unidad}</span></td>
+                  <td>{l.cantidad}</td>
+                  <td>{soles(l.precio)}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{soles(l.cantidad * l.precio)}</td>
+                  <td><button className="btn-mini btn-peligro" onClick={() => quitarLinea(i)}>✕</button></td>
+                </tr>
+              ))}
+              <tr><td colSpan="3"><strong>Total de la compra</strong></td><td style={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{soles(totalCompra)}</td><td></td></tr>
+            </tbody>
+          </table>
+        )}
+        <div className="form-inline">
+          <select value={nueva.producto_id} onChange={(e) => setNueva({ ...nueva, producto_id: e.target.value })} style={{ minWidth: 180 }}>
+            <option value="">Producto…</option>
+            {prodActivos.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad})</option>)}
+          </select>
+          <input type="number" step="0.001" placeholder="Cant." className="in-num" value={nueva.cantidad} onChange={(e) => setNueva({ ...nueva, cantidad: e.target.value })} style={{ maxWidth: 90 }} />
+          <input type="number" step="0.01" placeholder="Precio unit." className="in-num" value={nueva.precio} onChange={(e) => setNueva({ ...nueva, precio: e.target.value })} style={{ maxWidth: 110 }} />
+          <button className="btn-mini" onClick={agregarLinea}>+ Añadir producto</button>
+        </div>
+      </div>
+
+      <div className="acciones" style={{ marginTop: 12 }}>
+        <button className="btn-guardar" onClick={guardar} disabled={ocupado || !paso1 || !lineas.length}>
+          {ocupado ? 'Guardando…' : !paso1 ? 'Primero el comprobante o marca "en efectivo"' : !lineas.length ? 'Agrega los productos' : `Guardar compra (${soles(totalCompra)})`}
+        </button>
+      </div>
     </div>
   )
 }
