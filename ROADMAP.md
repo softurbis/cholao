@@ -11,15 +11,31 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-_(vacío — sql/27 corrido y desplegado el 17-jul-2026, commit `ddb9b6e`)_
+1. ⬜ **Correr `sql/28_caja_juan_pedidos.sql`** (agrega: factor de conversión en el catálogo,
+   `fondo_movimientos` + cierre del cuadre, lectura de caja Amazonas para Juan, estado
+   `enviado`/comprobantes en pedidos + `cantidad_ingreso`, `vista_consolidado_sede`, y la
+   RECEPCIÓN: `compras_lista_items.cantidad_recibida` + policies para que la cocina cree
+   salidas de su sede). **El frontend que lo usa ya está en código pero NO desplegado.**
+   Después: `bash deploy.sh` + commit + push. Igual que el 27: si se despliega sin correr
+   el 28, los paneles nuevos salen vacíos y "Enviar a Cesar" falla el check de estado.
 
 Verificar en producción cuando entre Juan/cocina:
-- **Cocina**: lista interactiva nueva (+/−, comentario, "Enviar lista a Juan" → bloquea).
-- **Juan**: en **Compras → pestaña Compras**, el nuevo **formulario de registro** (voucher
-  o "en efectivo" → datos → varios productos con cantidad+precio). Y que 📎 abra el voucher.
-- **Juan (📝 Mi Lista)**: ve las listas ENVIADAS por sede, con 🔓 Liberar / ✓ Atendida.
+- **Cocina → Mi Lista**: arma lista (+/−, comentario, "Enviar a Juan" → bloquea) y abajo la
+  **RECEPCIÓN**: conforme llega, marca cuánto recibió de cada ítem (parcial) → descuenta del
+  almacén. Puede agregar recepciones de emergencia.
+- **Juan → Compras**: formulario de registro (voucher/efectivo → datos → productos con
+  cantidad+precio); 📎 abre el voucher.
+- **Juan → 💵 Caja de Juan**: el cuadre diario (vuelto ayer + efec. Amazonas mañana/tarde
+  auto-sugeridos, adicionales y entregas a gerencia con comprobantes, − compras del día =
+  saldo). Cerrar el día → el saldo es la base de mañana.
+- **Juan → 📋 Pedidos**: consolidado POR SEDE; arma su pedido (puede pedir en otra unidad,
+  ej. sacos) y "Enviar a Cesar".
+- **Cesar → 📋 Pedidos**: reconfirma, ajusta lo que entra (unidad base, sugerido por el
+  factor), pone comprobantes y "Aceptar e ingresar al almacén" (recién ahí toca el stock).
+- **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
+- **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→27. **Pendiente:** ninguno.
+**SQL corridos:** 01→27. **Pendiente:** sql/28 (arriba).
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 

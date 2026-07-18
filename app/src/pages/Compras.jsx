@@ -2,10 +2,38 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchAll } from '../lib/fetchAll'
 import { useAuth } from '../context/AuthContext'
-import { puedeCompras } from '../lib/roles'
+import { puedeCompras, puedeEditar } from '../lib/roles'
+import Recepcion from '../components/Recepcion'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+// El día anterior a una fecha 'YYYY-MM-DD' (para el efectivo del turno que cerró).
+const diaAnterior = (iso) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() - 1); return fmt(d) }
+
+// Sube varios archivos al bucket arqueos bajo un prefijo; devuelve las rutas.
+async function subirVouchers(files, prefijo) {
+  const rutas = []
+  for (const f of files) {
+    const ext = (f.name.split('.').pop() || 'jpg').toLowerCase()
+    const ruta = `${prefijo}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
+    const { error } = await supabase.storage.from('arqueos').upload(ruta, f, { contentType: f.type || undefined })
+    if (error) throw error
+    rutas.push(ruta)
+  }
+  return rutas
+}
+async function verArchivo(ruta) {
+  const { data } = await supabase.storage.from('arqueos').createSignedUrl(ruta, 3600)
+  if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+}
+// Convierte la cantidad pedida (en su unidad) a la unidad base del producto.
+// Si es la unidad de compra y hay factor (1 saco = 25 kg), multiplica; si no, tal cual.
+function aUnidadBase(cantidad, unidad, prod) {
+  const c = Number(cantidad || 0)
+  if (prod?.unidad_compra && unidad === prod.unidad_compra && Number(prod.factor_compra) > 0)
+    return c * Number(prod.factor_compra)
+  return c
+}
 
 function Ranking({ titulo, filas, max, color = 'var(--rojo)' }) {
   return (
@@ -48,6 +76,8 @@ export default function Compras() {
   // Editar compras/entregas y el catálogo: quien opera compras (Juan/admin/super).
   // Antes era `!perfil || rol===superadmin||gerente` → daba acceso sin perfil.
   const esAdmin = puedeCompras(perfil)
+  // Cesar (super/admin): reconfirma pedidos e ingresa al almacén. Juan arma/envía.
+  const esCesar = puedeEditar(perfil)
 
   const [compras, setCompras] = useState([])
   const [entregas, setEntregas] = useState([])
@@ -201,7 +231,7 @@ export default function Compras() {
       </div>
 
       <div className="tab-bar">
-        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', 'Fondo de Juan'], ['pedidos', '📋 Pedidos'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
+        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', '💵 Caja de Juan'], ['pedidos', '📋 Pedidos'], ['recepcion', '📥 Recepción'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -286,26 +316,9 @@ export default function Compras() {
         {entF.length > 300 && <p className="nota">Mostrando 300 de {entF.length}.</p>}
       </>)}
 
-      {vista === 'fondo' && (<>
-        <div className="tarjetas" style={{ marginBottom: 16 }}>
-          <div className="tarjeta"><span className="t-label">Efectivo recibido de cajas</span><span className="t-valor" style={{ fontSize: 20 }}>{soles(fondoTot.rec)}</span></div>
-          <div className="tarjeta"><span className="t-label">Gastado en compras</span><span className="t-valor" style={{ fontSize: 20 }}>{soles(fondoTot.gas)}</span></div>
-          <div className="tarjeta"><span className="t-label">Entregado a administración</span><span className="t-valor" style={{ fontSize: 20 }}>{soles(fondoTot.adm)}</span></div>
-        </div>
-        <table className="tabla">
-          <thead><tr><th>Fecha</th><th>Base</th><th>Efec. mañana</th><th>Efec. tarde</th><th>Gasto</th><th>A admin.</th><th>Vuelto/Saldo</th></tr></thead>
-          <tbody>
-            {fondoF.slice(0, 120).map((x) => (
-              <tr key={x.fecha}>
-                <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
-                <td>{soles(x.base_inicial)}</td><td>{soles(x.efectivo_manana)}</td><td>{soles(x.efectivo_tarde)}</td>
-                <td style={{ color: 'var(--rojo)' }}>{soles(x.gasto_total)}</td><td>{soles(x.entrega_admin)}</td>
-                <td style={{ fontWeight: 700 }}>{soles(x.vuelto_saldo)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </>)}
+      {vista === 'fondo' && (
+        <CajaJuanTab sedes={sedes} perfil={perfil} puedeOperar={esAdmin} historico={fondo} />
+      )}
 
       {vista === 'catalogo' && (
         <CatalogoTab catalogo={catalogo} puedeEditar={esAdmin} onCambio={cargarCatalogos} />
@@ -317,7 +330,10 @@ export default function Compras() {
         <KardexTab catalogo={catalogo} sedes={sedes} puedeMover={esAdmin} />
       )}
       {vista === 'pedidos' && (
-        <PedidosTab catalogo={catalogo} perfil={perfil} esAdmin={esAdmin} />
+        <PedidosTab catalogo={catalogo} sedes={sedes} perfil={perfil} esAdmin={esAdmin} esCesar={esCesar} />
+      )}
+      {vista === 'recepcion' && (
+        <RecepcionTab sedes={sedes} perfil={perfil} puedeRecibir={esAdmin} />
       )}
     </div>
   )
@@ -479,6 +495,215 @@ function FormCompra({ perfil, catalogo, sedes, catProv, onCrearProv, onListo }) 
 }
 
 // ---------------------------------------------------------------------
+// Recepción desde Compras: Juan/almacén elige una sede y valida su entrega.
+// (La cocina de cada sede hace lo mismo desde "Mi Lista".)
+function RecepcionTab({ sedes, perfil, puedeRecibir }) {
+  const [sedeSel, setSedeSel] = useState(sedes[0]?.id || '')
+  const sede = sedes.find((s) => s.id === sedeSel)
+  return (
+    <div>
+      <div className="form-inline" style={{ marginBottom: 10 }}>
+        <label className="campo"><span>Sede</span>
+          <select value={sedeSel} onChange={(e) => setSedeSel(e.target.value)}>
+            <option value="">Elige…</option>
+            {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        </label>
+      </div>
+      <Recepcion sedeId={sedeSel} sedeNombre={sede?.nombre} perfil={perfil} puedeRecibir={puedeRecibir} />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// CAJA DIARIA DE JUAN. Su dinero sale SOLO de Amazonas. Cada día:
+//   vuelto anterior + efec. Amazonas mañana + efec. Amazonas tarde + adicionales
+//   − compras del día − entregas a gerencia = saldo (base del día siguiente).
+// El efectivo de Amazonas se auto-sugiere desde caja_turno del día que cerró
+// (día anterior); Juan puede corregirlo. Las entregas a gerencia NO son gasto,
+// pero salen de su caja. Adicionales y entregas llevan su(s) comprobante(s).
+function CajaJuanTab({ sedes, perfil, puedeOperar, historico }) {
+  const [fecha, setFecha] = useState(fmt(new Date()))
+  const [cuadre, setCuadre] = useState(null)       // fila fondo_compras_dia de esta fecha
+  const [base, setBase] = useState('')             // base_inicial (vuelto anterior)
+  const [manana, setManana] = useState('')
+  const [tarde, setTarde] = useState('')
+  const [movs, setMovs] = useState([])             // fondo_movimientos del día
+  const [comprasDia, setComprasDia] = useState(0)  // suma de compras del día
+  const [cargando, setCargando] = useState(true)
+  const [msg, setMsg] = useState('')
+
+  const amazonas = useMemo(() => sedes.find((s) => /AMAZONAS/i.test(s.nombre)), [sedes])
+
+  async function cargar() {
+    setCargando(true); setMsg('')
+    const prev = diaAnterior(fecha)
+    const [dia, movR, cmp, turnos, cuadrePrev] = await Promise.all([
+      supabase.from('fondo_compras_dia').select('*').eq('fecha', fecha).maybeSingle(),
+      supabase.from('fondo_movimientos').select('*').eq('fecha', fecha).order('created_at'),
+      supabase.from('compras').select('total').eq('fecha', fecha),
+      amazonas ? supabase.from('caja_turno').select('turno, efectivo').eq('sede_id', amazonas.id).eq('fecha', prev)
+        : Promise.resolve({ data: [] }),
+      supabase.from('fondo_compras_dia').select('vuelto_saldo').lt('fecha', fecha).order('fecha', { ascending: false }).limit(1).maybeSingle(),
+    ])
+    const row = dia.data
+    setCuadre(row); setMovs(movR.data || [])
+    setComprasDia((cmp.data || []).reduce((a, x) => a + Number(x.total || 0), 0))
+    const tMan = (turnos.data || []).find((t) => t.turno === 'manana')?.efectivo
+    const tTar = (turnos.data || []).find((t) => t.turno === 'tarde')?.efectivo
+    // Si ya hay cuadre guardado, muestra lo guardado; si no, auto-sugiere.
+    setBase(row ? row.base_inicial : (cuadrePrev.data?.vuelto_saldo ?? ''))
+    setManana(row ? row.efectivo_manana : (tMan ?? ''))
+    setTarde(row ? row.efectivo_tarde : (tTar ?? ''))
+    setCargando(false)
+  }
+  useEffect(() => { cargar() }, [fecha])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const adicionales = movs.filter((m) => m.tipo === 'adicional').reduce((a, m) => a + Number(m.monto || 0), 0)
+  const entregas = movs.filter((m) => m.tipo === 'entrega_gerencia').reduce((a, m) => a + Number(m.monto || 0), 0)
+  const disponible = Number(base || 0) + Number(manana || 0) + Number(tarde || 0) + adicionales
+  const saldo = disponible - comprasDia - entregas
+  const bloqueado = cuadre?.cerrado || !puedeOperar
+
+  async function guardarCuadre(cerrar) {
+    setMsg('')
+    const { error } = await supabase.from('fondo_compras_dia').upsert({
+      fecha, base_inicial: Number(base || 0), efectivo_manana: Number(manana || 0), efectivo_tarde: Number(tarde || 0),
+      adicionales, dinero_total: disponible, gasto_total: comprasDia, entrega_admin: entregas,
+      vuelto_saldo: saldo, cerrado: !!cerrar, cerrado_por: cerrar ? (perfil?.id || null) : null,
+    }, { onConflict: 'fecha' })
+    if (error) return setMsg(error.message)
+    setMsg(cerrar ? '✅ Día cerrado. El saldo es la base de mañana.' : '💾 Cuadre guardado.')
+    cargar()
+  }
+
+  const hist = (historico || []).filter((x) => x.fecha !== fecha).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')).slice(0, 30)
+
+  return (
+    <div>
+      <p className="pagina-sub">La caja de Juan: arranca con el vuelto de ayer más el efectivo de Amazonas (mañana y tarde), registra sus compras y entregas a gerencia, y cierra con el saldo — que es la base del día siguiente.</p>
+
+      <div className="form-inline" style={{ marginBottom: 8 }}>
+        <label className="campo"><span>Día</span><input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></label>
+        {cuadre?.cerrado && <span className="chip chip-ok" style={{ alignSelf: 'flex-end' }}>Día cerrado</span>}
+        {!amazonas && <span className="nota" style={{ alignSelf: 'flex-end' }}>⚠ No encuentro la sede Amazonas — digita el efectivo a mano.</span>}
+      </div>
+      {msg && <div className="alerta">{msg}</div>}
+
+      {cargando ? <p className="nota">Cargando…</p> : (<>
+        {/* El cuadre: entra − sale = saldo */}
+        <div className="panel-detalle">
+          <h3>Cuadre del día</h3>
+          <table className="tabla">
+            <tbody>
+              <tr><td>Vuelto de ayer (base)</td><td style={{ textAlign: 'right' }}>
+                {puedeOperar && !bloqueado ? <input type="number" step="0.01" className="in-num" value={base} onChange={(e) => setBase(e.target.value)} style={{ maxWidth: 120 }} /> : soles(base)}</td></tr>
+              <tr><td>+ Efectivo Amazonas mañana <span className="nota">({diaAnterior(fecha)})</span></td><td style={{ textAlign: 'right' }}>
+                {puedeOperar && !bloqueado ? <input type="number" step="0.01" className="in-num" value={manana} onChange={(e) => setManana(e.target.value)} style={{ maxWidth: 120 }} /> : soles(manana)}</td></tr>
+              <tr><td>+ Efectivo Amazonas tarde</td><td style={{ textAlign: 'right' }}>
+                {puedeOperar && !bloqueado ? <input type="number" step="0.01" className="in-num" value={tarde} onChange={(e) => setTarde(e.target.value)} style={{ maxWidth: 120 }} /> : soles(tarde)}</td></tr>
+              <tr><td>+ Adicionales <span className="nota">(depósitos/efectivo extra)</span></td><td style={{ textAlign: 'right' }}>{soles(adicionales)}</td></tr>
+              <tr style={{ fontWeight: 700, borderTop: '2px solid var(--linea, #ccc)' }}><td>Dinero disponible</td><td style={{ textAlign: 'right' }}>{soles(disponible)}</td></tr>
+              <tr><td>− Compras del día</td><td style={{ textAlign: 'right', color: 'var(--rojo)' }}>{soles(comprasDia)}</td></tr>
+              <tr><td>− Entregas a gerencia <span className="nota">(sale de caja, no es gasto)</span></td><td style={{ textAlign: 'right', color: 'var(--rojo)' }}>{soles(entregas)}</td></tr>
+              <tr style={{ fontWeight: 700, borderTop: '2px solid var(--linea, #ccc)' }}><td>Vuelto / saldo de cierre</td><td style={{ textAlign: 'right', fontSize: 18 }}>{soles(saldo)}</td></tr>
+            </tbody>
+          </table>
+          {puedeOperar && (
+            <div className="acciones" style={{ marginTop: 10 }}>
+              <button className="btn-mini" onClick={() => guardarCuadre(false)} disabled={bloqueado}>💾 Guardar</button>
+              {!cuadre?.cerrado
+                ? <button className="btn-guardar" onClick={() => guardarCuadre(true)}>🔒 Cerrar el día</button>
+                : <button className="btn-mini" onClick={() => guardarCuadre(false)}>🔓 Reabrir</button>}
+            </div>
+          )}
+        </div>
+
+        <div className="dos-cols">
+          <MovBloque tipo="adicional" titulo="Adicionales que le dieron" fecha={fecha} perfil={perfil} puedeOperar={puedeOperar && !bloqueado} movs={movs} onCambio={cargar} />
+          <MovBloque tipo="entrega_gerencia" titulo="Entregas a gerencia" fecha={fecha} perfil={perfil} puedeOperar={puedeOperar && !bloqueado} movs={movs} onCambio={cargar} />
+        </div>
+
+        {hist.length > 0 && (<>
+          <h2 className="sub-titulo" style={{ marginTop: 18 }}>Días anteriores</h2>
+          <table className="tabla">
+            <thead><tr><th>Fecha</th><th>Base</th><th>Efec. mañana</th><th>Efec. tarde</th><th>Compras</th><th>A gerencia</th><th>Saldo</th></tr></thead>
+            <tbody>
+              {hist.map((x) => (
+                <tr key={x.fecha} style={{ cursor: 'pointer' }} onClick={() => setFecha(x.fecha)}>
+                  <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}{x.cerrado && ' 🔒'}</td>
+                  <td>{soles(x.base_inicial)}</td><td>{soles(x.efectivo_manana)}</td><td>{soles(x.efectivo_tarde)}</td>
+                  <td style={{ color: 'var(--rojo)' }}>{soles(x.gasto_total)}</td><td>{soles(x.entrega_admin)}</td>
+                  <td style={{ fontWeight: 700 }}>{soles(x.vuelto_saldo)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>)}
+      </>)}
+    </div>
+  )
+}
+
+// Bloque de movimientos del fondo (adicionales o entregas a gerencia), cada uno
+// con su monto, medio, nota y 1 o varios comprobantes.
+const MEDIOS_FONDO = ['efectivo', 'deposito', 'yape', 'transferencia']
+function MovBloque({ tipo, titulo, fecha, perfil, puedeOperar, movs, onCambio }) {
+  const [monto, setMonto] = useState('')
+  const [medio, setMedio] = useState(tipo === 'adicional' ? 'deposito' : 'efectivo')
+  const [nota, setNota] = useState('')
+  const [files, setFiles] = useState([])
+  const [ocupado, setOcupado] = useState(false)
+  const lista = movs.filter((m) => m.tipo === tipo)
+  const total = lista.reduce((a, m) => a + Number(m.monto || 0), 0)
+
+  async function agregar() {
+    if (!(Number(monto) > 0)) return alert('Monto mayor a 0.')
+    setOcupado(true)
+    let vouchers = []
+    try { if (files.length) vouchers = await subirVouchers(files, `fondo/${fecha}`) }
+    catch (e) { setOcupado(false); return alert('No pude subir el comprobante: ' + e.message) }
+    const { error } = await supabase.from('fondo_movimientos').insert({
+      fecha, tipo, monto: Number(monto), medio, nota: nota.trim() || null, vouchers, registrado_por: perfil?.id || null,
+    })
+    setOcupado(false)
+    if (error) return alert(error.message)
+    setMonto(''); setNota(''); setFiles([]); onCambio()
+  }
+  async function quitar(m) {
+    if (!confirm('¿Quitar este movimiento?')) return
+    if (m.vouchers?.length) await supabase.storage.from('arqueos').remove(m.vouchers)
+    await supabase.from('fondo_movimientos').delete().eq('id', m.id); onCambio()
+  }
+
+  return (
+    <div className="panel-detalle">
+      <h3>{titulo} <span className="nota">{soles(total)}</span></h3>
+      {lista.map((m) => (
+        <div key={m.id} className="form-inline" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--linea, #eee)', padding: '4px 0' }}>
+          <span><strong>{soles(m.monto)}</strong> <span className="nota">{m.medio}{m.nota ? ` · ${m.nota}` : ''}</span></span>
+          <span>
+            {(m.vouchers || []).map((v, i) => <button key={i} className="btn-mini" onClick={() => verArchivo(v)}>📎</button>)}
+            {puedeOperar && <button className="btn-mini btn-peligro" onClick={() => quitar(m)}>✕</button>}
+          </span>
+        </div>
+      ))}
+      {lista.length === 0 && <p className="nota">Ninguno hoy.</p>}
+      {puedeOperar && (
+        <div className="form-inline" style={{ marginTop: 8 }}>
+          <input type="number" step="0.01" placeholder="Monto" className="in-num" value={monto} onChange={(e) => setMonto(e.target.value)} style={{ maxWidth: 100 }} />
+          <select value={medio} onChange={(e) => setMedio(e.target.value)}>{MEDIOS_FONDO.map((x) => <option key={x} value={x}>{x}</option>)}</select>
+          <input placeholder="Nota" value={nota} onChange={(e) => setNota(e.target.value)} style={{ maxWidth: 130 }} />
+          <label className="btn-mini" style={{ cursor: 'pointer' }}>📎 Comprob.{files.length ? ` (${files.length})` : ''}
+            <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => setFiles(Array.from(e.target.files || []))} /></label>
+          <button className="btn-mini" onClick={agregar} disabled={ocupado}>{ocupado ? '…' : '+ Añadir'}</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
 // Catálogo de productos (el maestro con unidad). De aquí elige la cocina.
 const UNIDADES = ['kg', 'unidad', 'caja', 'litro', 'atado', 'paquete', 'bolsa', 'docena']
 
@@ -526,7 +751,7 @@ function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
       )}
       <div className="form-inline"><input placeholder="🔎 Buscar producto…" value={busca} onChange={(e) => setBusca(e.target.value)} style={{ minWidth: 220 }} /><span className="nota" style={{ alignSelf: 'center' }}>{fil.length} de {catalogo.length}</span></div>
       <table className="tabla">
-        <thead><tr><th>Producto</th><th>Unidad</th><th>Categoría</th><th>Ubicación</th><th>Foto</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Producto</th><th>Unidad</th><th>Compra x mayor</th><th>Categoría</th><th>Ubicación</th><th>Foto</th><th>Estado</th></tr></thead>
         <tbody>
           {fil.map((p) => (
             <tr key={p.id} className={p.activo ? '' : 'fila-inactiva'}>
@@ -534,6 +759,12 @@ function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
               <td>{puedeEditar
                 ? <select value={p.unidad} onChange={(e) => editar(p.id, 'unidad', e.target.value)}>{UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}{!UNIDADES.includes(p.unidad) && <option value={p.unidad}>{p.unidad}</option>}</select>
                 : p.unidad}</td>
+              <td>{puedeEditar ? (
+                <span className="nota" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                  1 <input defaultValue={p.unidad_compra || ''} placeholder="saco" onBlur={(e) => e.target.value.trim().toLowerCase() !== (p.unidad_compra || '') && editar(p.id, 'unidad_compra', e.target.value.trim().toLowerCase() || null)} style={{ maxWidth: 70 }} />
+                  = <input type="number" step="0.001" defaultValue={p.factor_compra || ''} placeholder="25" onBlur={(e) => Number(e.target.value) !== Number(p.factor_compra || 0) && editar(p.id, 'factor_compra', Number(e.target.value) || null)} style={{ maxWidth: 60 }} /> {p.unidad}
+                </span>
+              ) : (p.unidad_compra ? `1 ${p.unidad_compra} = ${p.factor_compra || '?'} ${p.unidad}` : '—')}</td>
               <td>{p.categoria || '—'}</td>
               <td>{puedeEditar
                 ? <input defaultValue={p.ubicacion || ''} placeholder="Estante A2…" onBlur={(e) => e.target.value !== (p.ubicacion || '') && editar(p.id, 'ubicacion', e.target.value.trim().toUpperCase() || null)} style={{ maxWidth: 120 }} />
@@ -548,7 +779,7 @@ function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
                 : <span className={`chip ${p.activo ? 'chip-ok' : 'chip-off'}`}>{p.activo ? 'Activo' : 'Inactivo'}</span>}</td>
             </tr>
           ))}
-          {catalogo.length === 0 && <tr><td colSpan="6" className="nota">Catálogo vacío. Añade productos arriba (o se siembra desde las compras).</td></tr>}
+          {catalogo.length === 0 && <tr><td colSpan="7" className="nota">Catálogo vacío. Añade productos arriba (o se siembra desde las compras).</td></tr>}
         </tbody>
       </table>
     </div>
@@ -729,31 +960,51 @@ function KardexTab({ catalogo, sedes, puedeMover }) {
 }
 
 // ---------------------------------------------------------------------
-// Consolidado de lo que piden las sedes + Pedidos de Juan a Cesar.
-// Circuito: cocina sube lista → aquí Juan ve el CONSOLIDADO (suma por producto)
-// → arma un PEDIDO → Cesar lo compra e INGRESA al almacén.
-const EST_LABEL = { pendiente: 'Pendiente', comprado: 'Comprado', recibido: 'Recibido', anulado: 'Anulado' }
+// Consolidado POR SEDE + Pedidos de Juan a Cesar.
+// Circuito: cocina envía su lista → Juan ve el consolidado (total y por sede) →
+// arma SU pedido (puede pedir en otra unidad, ej. sacos) y lo ENVÍA → Cesar
+// reconfirma, ajusta lo que realmente entra (unidad base del catálogo), pone
+// comprobantes y al ACEPTAR recién ingresa al almacén.
+const EST_LABEL = { pendiente: 'Armando', enviado: 'Enviado a Cesar', comprado: 'Comprado', recibido: 'Recibido', anulado: 'Anulado' }
 
-function PedidosTab({ catalogo, perfil, esAdmin }) {
-  const [consol, setConsol] = useState([])
+function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
+  const [consol, setConsol] = useState([])   // vista_consolidado_sede (producto × sede)
   const [pedidos, setPedidos] = useState([])
   const [items, setItems] = useState([])
   const [cargando, setCargando] = useState(true)
-  const [add, setAdd] = useState({})   // {pedidoId: {producto_id, cantidad}}
+  const [add, setAdd] = useState({})          // {pedidoId: {producto_id, cantidad, unidad}}
+  const [ing, setIng] = useState({})          // {itemId: cantidad_ingreso} — edición de Cesar
+  const [conf, setConf] = useState({})        // {pedidoId: {comprobante, files}}
 
   async function cargar() {
     setCargando(true)
     const [{ data: c }, { data: p }, { data: it }] = await Promise.all([
-      supabase.from('vista_consolidado_listas').select('*'),
+      supabase.from('vista_consolidado_sede').select('*'),
       supabase.from('pedidos').select('*').order('fecha', { ascending: false }).limit(200),
       supabase.from('pedido_items').select('*'),
     ])
     setConsol(c || []); setPedidos(p || []); setItems(it || []); setCargando(false)
   }
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const prodN = useMemo(() => Object.fromEntries(catalogo.map((p) => [p.id, p])), [catalogo])
   const itemsDe = (pid) => items.filter((x) => x.pedido_id === pid)
+
+  // Consolidado pivotado: por producto, cantidad por sede + total.
+  const sedeNombres = useMemo(() => [...new Set(consol.map((c) => c.sede).filter(Boolean))].sort(), [consol])
+  const consolPivot = useMemo(() => {
+    const m = {}
+    for (const c of consol) {
+      const k = c.clave
+      m[k] = m[k] || { clave: k, producto: c.producto, unidad: c.unidad, porSede: {}, total: 0, libre: String(k).startsWith('libre:') }
+      m[k].porSede[c.sede] = (m[k].porSede[c.sede] || 0) + Number(c.cantidad || 0)
+      m[k].total += Number(c.cantidad || 0)
+    }
+    return Object.values(m).sort((a, b) => a.producto.localeCompare(b.producto))
+  }, [consol])
+
+  // Unidades para pedir un producto: la base + la de compra (si tiene).
+  const unidadesDe = (prod) => [prod?.unidad, prod?.unidad_compra].filter(Boolean)
 
   async function nuevoPedido() {
     const { data, error } = await supabase.from('pedidos').insert({ estado: 'pendiente', creado_por: perfil?.id || null }).select().single()
@@ -761,9 +1012,8 @@ function PedidosTab({ catalogo, perfil, esAdmin }) {
     setPedidos((p) => [data, ...p])
   }
   async function armarConConsolidado(pid) {
-    if (!consol.length) return alert('No hay nada pendiente en las listas de las sedes.')
-    const filas = consol.filter((c) => !String(c.clave).startsWith('libre:')).map((c) => ({
-      pedido_id: pid, producto_id: c.clave, cantidad: Number(c.total_pedido) || null, unidad: c.unidad, comprado: false,
+    const filas = consolPivot.filter((c) => !c.libre).map((c) => ({
+      pedido_id: pid, producto_id: c.clave, cantidad: c.total, unidad: prodN[c.clave]?.unidad || c.unidad, comprado: false,
     }))
     if (!filas.length) return alert('El consolidado no tiene productos del catálogo (solo texto libre).')
     const { error } = await supabase.from('pedido_items').insert(filas)
@@ -774,24 +1024,48 @@ function PedidosTab({ catalogo, perfil, esAdmin }) {
     const a = add[pid] || {}
     if (!a.producto_id || !(Number(a.cantidad) > 0)) return
     const p = prodN[a.producto_id]
-    const { error } = await supabase.from('pedido_items').insert({ pedido_id: pid, producto_id: a.producto_id, cantidad: Number(a.cantidad), unidad: p?.unidad, comprado: false })
+    const { error } = await supabase.from('pedido_items').insert({ pedido_id: pid, producto_id: a.producto_id, cantidad: Number(a.cantidad), unidad: a.unidad || p?.unidad, comprado: false })
     if (error) return alert(error.message)
     setAdd((s) => ({ ...s, [pid]: {} })); cargar()
   }
+  async function editarItem(it, campo, valor) {
+    await supabase.from('pedido_items').update({ [campo]: valor }).eq('id', it.id); cargar()
+  }
   async function quitarItem(id) { await supabase.from('pedido_items').delete().eq('id', id); cargar() }
-  async function toggleComprado(it) { await supabase.from('pedido_items').update({ comprado: !it.comprado }).eq('id', it.id); cargar() }
   async function setEstado(ped, estado) { await supabase.from('pedidos').update({ estado }).eq('id', ped.id); cargar() }
 
-  // Cesar: ingresar al almacén lo comprado de este pedido (crea los ingresos).
-  async function ingresarAlmacen(ped) {
-    const its = itemsDe(ped.id).filter((x) => x.producto_id && (x.comprado || true))
-    if (!its.length) return alert('Este pedido no tiene productos del catálogo para ingresar.')
-    if (!confirm(`¿Ingresar al almacén ${its.length} producto(s) de este pedido?`)) return
-    const movs = its.map((x) => ({ producto_id: x.producto_id, tipo: 'ingreso', cantidad: Number(x.cantidad || 0), nota: 'Pedido ' + ped.id.slice(0, 6), fecha: fmt(new Date()) }))
-    const { error } = await supabase.from('almacen_movimientos').insert(movs)
-    if (error) return alert(error.message)
-    await supabase.from('pedidos').update({ estado: 'recibido' }).eq('id', ped.id)
-    alert('✅ Ingresado al almacén. Ya puedes repartir a las sedes desde Almacén / Kardex.')
+  // Cesar acepta: fija lo que entra al almacén (unidad base), sube comprobantes,
+  // crea los ingresos y marca recibido. SOLO aquí se toca el stock.
+  async function aceptarEIngresar(ped) {
+    const all = itemsDe(ped.id).filter((x) => x.producto_id)
+    if (!all.length) return alert('El pedido no tiene productos del catálogo.')
+    // Solo se ingresa lo que AÚN no entró (cantidad_ingreso null): así reabrir un
+    // pedido ya recibido y añadirle algo no duplica lo anterior en el almacén.
+    const nuevos = all.filter((x) => x.cantidad_ingreso == null)
+    const movs = nuevos.map((x) => {
+      const sug = aUnidadBase(x.cantidad, x.unidad, prodN[x.producto_id])
+      const cant = ing[x.id] !== undefined && ing[x.id] !== '' ? Number(ing[x.id]) : sug
+      return { it: x, cant }
+    })
+    if (movs.some((m) => !(m.cant > 0))) return alert('Cada producto nuevo debe entrar con una cantidad mayor a 0.')
+    if (!confirm(movs.length
+      ? `¿Ingresar al almacén ${movs.length} producto(s)? Se descuenta luego al repartir a las sedes.`
+      : 'No hay productos nuevos por ingresar. ¿Marcar el pedido como recibido?')) return
+    const cc = conf[ped.id] || {}
+    let vouchers = ped.vouchers || []
+    try { if (cc.files?.length) vouchers = [...vouchers, ...await subirVouchers(cc.files, `pedidos/${ped.id.slice(0, 8)}`)] }
+    catch (e) { return alert('No pude subir el comprobante: ' + e.message) }
+    for (const m of movs) await supabase.from('pedido_items').update({ cantidad_ingreso: m.cant, comprado: true }).eq('id', m.it.id)
+    if (movs.length) {
+      const { error: eMov } = await supabase.from('almacen_movimientos').insert(movs.map((m) => ({
+        producto_id: m.it.producto_id, tipo: 'ingreso', cantidad: m.cant, nota: 'Pedido ' + ped.id.slice(0, 6), fecha: fmt(new Date()),
+      })))
+      if (eMov) return alert(eMov.message)
+    }
+    await supabase.from('pedidos').update({ estado: 'recibido', confirmado_por: perfil?.id || null, vouchers,
+      comprobante: cc.comprobante?.trim().toUpperCase() || ped.comprobante || null }).eq('id', ped.id)
+    setConf((s) => ({ ...s, [ped.id]: {} }))
+    alert(movs.length ? '✅ Ingresado al almacén. Ya puedes repartir a las sedes desde Almacén / Kardex.' : '✅ Pedido marcado como recibido.')
     cargar()
   }
 
@@ -799,19 +1073,19 @@ function PedidosTab({ catalogo, perfil, esAdmin }) {
 
   return (
     <div>
-      <p className="pagina-sub">Lo que piden las sedes, sumado. Juan arma el pedido; Cesar lo compra e ingresa al almacén.</p>
+      <p className="pagina-sub">Lo que piden las sedes, por sede y sumado. Juan arma su pedido (puede pedir en otra unidad) y lo envía; Cesar reconfirma, pone comprobantes y al aceptar ingresa al almacén.</p>
 
       <div className="panel-detalle">
         <h3>📊 Consolidado — lo que piden las sedes</h3>
-        {consol.length === 0 ? <p className="nota">Ninguna sede tiene pedidos pendientes en sus listas.</p> : (
+        {consolPivot.length === 0 ? <p className="nota">Ninguna sede tiene listas enviadas pendientes.</p> : (
           <table className="tabla">
-            <thead><tr><th>Producto</th><th>Total</th><th>Sedes</th></tr></thead>
+            <thead><tr><th>Producto</th>{sedeNombres.map((s) => <th key={s}>{s}</th>)}<th>Total</th></tr></thead>
             <tbody>
-              {consol.map((c) => (
+              {consolPivot.map((c) => (
                 <tr key={c.clave}>
-                  <td><strong>{c.producto}</strong>{String(c.clave).startsWith('libre:') && <span className="chip chip-off" style={{ marginLeft: 6 }}>texto libre</span>}</td>
-                  <td style={{ fontWeight: 700 }}>{Number(c.total_pedido).toLocaleString('es-PE')} {c.unidad}</td>
-                  <td>{c.sedes}</td>
+                  <td><strong>{c.producto}</strong>{c.libre && <span className="chip chip-off" style={{ marginLeft: 6 }}>texto libre</span>}</td>
+                  {sedeNombres.map((s) => <td key={s}>{c.porSede[s] ? `${Number(c.porSede[s]).toLocaleString('es-PE')}` : '—'}</td>)}
+                  <td style={{ fontWeight: 700 }}>{Number(c.total).toLocaleString('es-PE')} {c.unidad}</td>
                 </tr>
               ))}
             </tbody>
@@ -823,39 +1097,107 @@ function PedidosTab({ catalogo, perfil, esAdmin }) {
 
       {pedidos.map((ped) => {
         const its = itemsDe(ped.id)
+        const armando = ped.estado === 'pendiente'
+        const enviado = ped.estado === 'enviado'
+        const cerrado = ped.estado === 'recibido' || ped.estado === 'anulado'
+        const juanEdita = esAdmin && armando
+        const cesarConfirma = esCesar && enviado
         return (
           <div key={ped.id} className="panel-detalle">
-            <h3>Pedido {ped.fecha} <span className={`chip ${ped.estado === 'recibido' ? 'chip-ok' : ped.estado === 'anulado' ? 'chip-off' : ''}`}>{EST_LABEL[ped.estado] || ped.estado}</span></h3>
-            {esAdmin && ped.estado === 'pendiente' && (
+            <h3>Pedido {ped.fecha} <span className={`chip ${ped.estado === 'recibido' ? 'chip-ok' : ped.estado === 'anulado' ? 'chip-off' : ''}`}>{EST_LABEL[ped.estado] || ped.estado}</span>
+              {(ped.vouchers?.length > 0 || ped.comprobante) && <span className="nota" style={{ marginLeft: 8 }}>{ped.comprobante || ''} {(ped.vouchers || []).map((v, i) => <button key={i} className="btn-mini" onClick={() => verArchivo(v)}>📎</button>)}</span>}
+            </h3>
+
+            {juanEdita && (
               <div className="form-inline" style={{ marginBottom: 8 }}>
                 <button className="btn-mini" onClick={() => armarConConsolidado(ped.id)}>⤵ Armar con el consolidado</button>
               </div>
             )}
+
             <table className="tabla">
-              <thead><tr><th>Producto</th><th>Cantidad</th><th>Comprado</th>{esAdmin && <th></th>}</tr></thead>
+              <thead><tr><th>Producto</th><th>Pide Juan</th>{(cesarConfirma || ped.estado === 'recibido') && <th>Entra al almacén</th>}{juanEdita && <th></th>}</tr></thead>
               <tbody>
-                {its.map((it) => (
-                  <tr key={it.id} className={it.comprado ? 'fila-inactiva' : ''}>
-                    <td><strong>{prodN[it.producto_id]?.nombre || it.nombre_libre || '—'}</strong></td>
-                    <td>{it.cantidad} {it.unidad || ''}</td>
-                    <td><button className={`chip ${it.comprado ? 'chip-ok' : 'chip-off'}`} onClick={() => esAdmin && toggleComprado(it)}>{it.comprado ? '✓ Sí' : 'No'}</button></td>
-                    {esAdmin && <td><button className="btn-mini btn-peligro" onClick={() => quitarItem(it.id)}>✕</button></td>}
-                  </tr>
-                ))}
-                {its.length === 0 && <tr><td colSpan={esAdmin ? 4 : 3} className="nota">Sin productos. Arma con el consolidado o añade abajo.</td></tr>}
+                {its.map((it) => {
+                  const prod = prodN[it.producto_id]
+                  const sug = aUnidadBase(it.cantidad, it.unidad, prod)
+                  return (
+                    <tr key={it.id}>
+                      <td><strong>{prod?.nombre || it.nombre_libre || '—'}</strong></td>
+                      <td>
+                        {juanEdita ? (
+                          <span className="form-inline" style={{ gap: 4 }}>
+                            <input type="number" step="0.001" defaultValue={it.cantidad} className="in-num" style={{ maxWidth: 80 }}
+                              onBlur={(e) => Number(e.target.value) !== Number(it.cantidad) && editarItem(it, 'cantidad', Number(e.target.value) || 0)} />
+                            <select value={it.unidad || prod?.unidad || ''} onChange={(e) => editarItem(it, 'unidad', e.target.value)}>
+                              {unidadesDe(prod).map((u) => <option key={u} value={u}>{u}</option>)}
+                              {it.unidad && !unidadesDe(prod).includes(it.unidad) && <option value={it.unidad}>{it.unidad}</option>}
+                            </select>
+                          </span>
+                        ) : <span>{Number(it.cantidad).toLocaleString('es-PE')} {it.unidad || ''}</span>}
+                      </td>
+                      {cesarConfirma && (
+                        <td>
+                          {it.cantidad_ingreso != null
+                            ? <span className="nota">{Number(it.cantidad_ingreso).toLocaleString('es-PE')} {prod?.unidad} <span className="chip chip-ok">ya entró</span></span>
+                            : (<><input type="number" step="0.001" placeholder={String(sug)} className="in-num" style={{ maxWidth: 90 }}
+                                value={ing[it.id] ?? (sug || '')} onChange={(e) => setIng((s) => ({ ...s, [it.id]: e.target.value }))} />
+                              <span className="nota"> {prod?.unidad}</span></>)}
+                        </td>
+                      )}
+                      {ped.estado === 'recibido' && <td>{it.cantidad_ingreso != null ? `${Number(it.cantidad_ingreso).toLocaleString('es-PE')} ${prod?.unidad || ''}` : '—'}</td>}
+                      {juanEdita && <td><button className="btn-mini btn-peligro" onClick={() => quitarItem(it.id)}>✕</button></td>}
+                    </tr>
+                  )
+                })}
+                {its.length === 0 && <tr><td colSpan={4} className="nota">Sin productos. Arma con el consolidado o añade abajo.</td></tr>}
               </tbody>
             </table>
-            {esAdmin && ped.estado !== 'recibido' && ped.estado !== 'anulado' && (
+
+            {/* Juan: añadir productos + enviar a Cesar */}
+            {juanEdita && (<>
               <div className="form-inline" style={{ marginTop: 8 }}>
-                <select value={add[ped.id]?.producto_id || ''} onChange={(e) => setAdd((s) => ({ ...s, [ped.id]: { ...s[ped.id], producto_id: e.target.value } }))} style={{ minWidth: 170 }}>
+                <select value={add[ped.id]?.producto_id || ''} onChange={(e) => { const pid = e.target.value; setAdd((s) => ({ ...s, [ped.id]: { producto_id: pid, cantidad: s[ped.id]?.cantidad || '', unidad: prodN[pid]?.unidad || '' } })) }} style={{ minWidth: 170 }}>
                   <option value="">Añadir producto…</option>
                   {catalogo.filter((p) => p.activo).map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad})</option>)}
                 </select>
-                <input type="number" placeholder="Cant." className="in-num" value={add[ped.id]?.cantidad || ''} onChange={(e) => setAdd((s) => ({ ...s, [ped.id]: { ...s[ped.id], cantidad: e.target.value } }))} style={{ maxWidth: 90 }} />
+                <input type="number" placeholder="Cant." className="in-num" value={add[ped.id]?.cantidad || ''} onChange={(e) => setAdd((s) => ({ ...s, [ped.id]: { ...s[ped.id], cantidad: e.target.value } }))} style={{ maxWidth: 80 }} />
+                {add[ped.id]?.producto_id && (
+                  <select value={add[ped.id]?.unidad || ''} onChange={(e) => setAdd((s) => ({ ...s, [ped.id]: { ...s[ped.id], unidad: e.target.value } }))}>
+                    {unidadesDe(prodN[add[ped.id].producto_id]).map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                )}
                 <button className="btn-mini" onClick={() => addItem(ped.id)}>+ Añadir</button>
-                <span style={{ flex: 1 }} />
-                <button className="btn-guardar" onClick={() => ingresarAlmacen(ped)}>🏬 Ingresar al almacén</button>
+              </div>
+              <div className="acciones" style={{ marginTop: 10 }}>
+                <button className="btn-guardar" onClick={() => its.length ? setEstado(ped, 'enviado') : alert('Agrega productos primero.')}>📨 Enviar a Cesar</button>
                 <button className="btn-mini" onClick={() => setEstado(ped, 'anulado')}>Anular</button>
+              </div>
+            </>)}
+
+            {/* Enviado, esperando a Cesar: Juan lo ve pero no lo toca */}
+            {enviado && !esCesar && <p className="nota" style={{ marginTop: 8 }}>📨 Enviado. Esperando que Cesar lo reciba e ingrese al almacén.{esAdmin && ' Puedes reabrirlo si hay que corregir.'} {esAdmin && <button className="btn-mini" onClick={() => setEstado(ped, 'pendiente')}>🔓 Reabrir</button>}</p>}
+
+            {/* Cesar: reconfirma, comprobante y acepta */}
+            {cesarConfirma && (
+              <div style={{ marginTop: 10 }}>
+                <div className="form-inline">
+                  <input placeholder="N° comprobante mayorista (opcional)" value={conf[ped.id]?.comprobante || ''} onChange={(e) => setConf((s) => ({ ...s, [ped.id]: { ...s[ped.id], comprobante: e.target.value } }))} style={{ minWidth: 200 }} />
+                  <label className="btn-mini" style={{ cursor: 'pointer' }}>📎 Comprobantes{conf[ped.id]?.files?.length ? ` (${conf[ped.id].files.length})` : ''}
+                    <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={(e) => setConf((s) => ({ ...s, [ped.id]: { ...s[ped.id], files: Array.from(e.target.files || []) } }))} /></label>
+                </div>
+                <div className="acciones" style={{ marginTop: 8 }}>
+                  <button className="btn-guardar" onClick={() => aceptarEIngresar(ped)}>✅ Aceptar e ingresar al almacén</button>
+                  <button className="btn-mini" onClick={() => setEstado(ped, 'pendiente')}>🔓 Devolver a Juan</button>
+                  <button className="btn-mini" onClick={() => setEstado(ped, 'anulado')}>Anular</button>
+                </div>
+              </div>
+            )}
+
+            {/* Cerrado (recibido/anulado): reabrir para añadir o corregir */}
+            {cerrado && esAdmin && (
+              <div className="acciones" style={{ marginTop: 8 }}>
+                <button className="btn-mini" onClick={() => setEstado(ped, 'pendiente')}>🔓 Reabrir para añadir/corregir</button>
+                {ped.estado === 'recibido' && <span className="nota">Lo que ya entró al almacén se queda; al re-aceptar solo entra lo nuevo.</span>}
               </div>
             )}
           </div>

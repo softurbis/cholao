@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import Recepcion from '../components/Recepcion'
 
 // "Mi Lista" — lo que cada sede necesita que compren.
 //   Cocina: arma su lista con botones +/− (fácil en celular), le pone un
@@ -99,6 +100,11 @@ export default function Lista() {
               onCrear={() => crearLista(perfil.sede_id)} onSet={setCantidad}
               onComentario={setComentario} onEnviar={enviar}
             />}
+
+        {/* Recepción: conforme llega el pedido, la sede lo valida y descuenta del almacén. */}
+        <div style={{ marginTop: 22, borderTop: '2px solid var(--linea, #e5e5e5)', paddingTop: 14 }}>
+          <Recepcion sedeId={perfil.sede_id} sedeNombre={nombreSede(perfil.sede_id)} perfil={perfil} puedeRecibir />
+        </div>
       </div>
     )
   }
