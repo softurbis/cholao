@@ -11,13 +11,7 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-1. ⬜ **Correr `sql/28_caja_juan_pedidos.sql`** (agrega: factor de conversión en el catálogo,
-   `fondo_movimientos` + cierre del cuadre, lectura de caja Amazonas para Juan, estado
-   `enviado`/comprobantes en pedidos + `cantidad_ingreso`, `vista_consolidado_sede`, y la
-   RECEPCIÓN: `compras_lista_items.cantidad_recibida` + policies para que la cocina cree
-   salidas de su sede). **El frontend que lo usa ya está en código pero NO desplegado.**
-   Después: `bash deploy.sh` + commit + push. Igual que el 27: si se despliega sin correr
-   el 28, los paneles nuevos salen vacíos y "Enviar a Cesar" falla el check de estado.
+_(sql/28 CORRIDO y DESPLEGADO el 17-jul-2026, commit `50eb37b`.)_
 
 Verificar en producción cuando entre Juan/cocina:
 - **Cocina → Mi Lista**: arma lista (+/−, comentario, "Enviar a Juan" → bloquea) y abajo la
@@ -35,7 +29,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→27. **Pendiente:** sql/28 (arriba).
+**SQL corridos:** 01→28. **Pendiente:** ninguno.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 
