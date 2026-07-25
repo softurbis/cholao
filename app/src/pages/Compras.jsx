@@ -7,6 +7,7 @@ import Recepcion from '../components/Recepcion'
 import ComprasHoy from '../components/ComprasHoy'
 import ControlCompras from '../components/ControlCompras'
 import ConteoAlmacen from '../components/ConteoAlmacen'
+import Manual from '../components/Manual'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -204,7 +205,7 @@ export default function Compras() {
 
   return (
     <div className="pagina">
-      <h1>Compras <span className="titulo-tag">Juan</span></h1>
+      <h1>Compras <span className="titulo-tag">Juan</span><Manual modulo="compras" /></h1>
       <p className="pagina-sub">Compras diarias con efectivo de caja, entregas a sedes y cuadre del fondo.</p>
 
       <datalist id="lista-productos">{productos.map((p) => <option key={p} value={p} />)}</datalist>

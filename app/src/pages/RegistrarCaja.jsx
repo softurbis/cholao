@@ -6,6 +6,7 @@ import { parseArqueo } from '../lib/parseArqueo'
 import { parseProductos, cruzarConStock } from '../lib/parseProductos'
 import { climaDe } from '../lib/clima'
 import { puedeEditar } from '../lib/roles'
+import Manual from '../components/Manual'
 
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -457,7 +458,7 @@ export default function RegistrarCaja() {
 
       {/* ---------------- FASE 1 ---------------- */}
       {!turno && (<>
-        <h1>Apertura de caja</h1>
+        <h1>Apertura de caja<Manual modulo="registro" /></h1>
         <p className="pagina-sub">Abre el turno con tu nombre, la base de caja y el stock inicial.</p>
         <div className="filtros">
           <label className="campo"><span>Sede</span><select value={ap.sede_id} onChange={(e) => setAp({ ...ap, sede_id: e.target.value })}>{sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>

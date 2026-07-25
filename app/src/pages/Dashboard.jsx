@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import Manual from '../components/Manual'
 import { useAuth } from '../context/AuthContext'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -63,7 +64,7 @@ export default function Dashboard() {
     <div className="pagina">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h1>📊 Panel de control</h1>
+          <h1>📊 Panel de control<Manual modulo="dashboard" /></h1>
           <p className="pagina-sub">Hola{perfil?.nombre ? `, ${perfil.nombre}` : ''}. Flujo de dinero — puro números.</p>
         </div>
         <select className="sel-anio" value={anio} onChange={(e) => setAnio(e.target.value)}>

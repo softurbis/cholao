@@ -35,6 +35,17 @@ export const MODULOS = [
   // 'asistencia' se quitó a propósito: el módulo existe pero no se usa todavía.
 ]
 
+// Cómo se agrupa el menú de la izquierda. La idea es que cada quien encuentre
+// rápido lo suyo: primero lo que se usa TODOS LOS DÍAS, después lo que se revisa,
+// y al final lo que casi nunca se toca.
+// Un grupo sin módulos visibles para ese rol no se pinta. Y si a alguien le tocan
+// pocos módulos (la cajera ve uno), el menú va plano: agrupar tres cosas estorba.
+export const GRUPOS = [
+  { key: 'dia', label: 'Día a día', icon: '🗓️', modulos: ['registro', 'lista', 'compras', 'gastos'] },
+  { key: 'control', label: 'Revisión', icon: '📈', modulos: ['dashboard', 'cuadre', 'ventas', 'productos'] },
+  { key: 'ajustes', label: 'Ajustes', icon: '🔧', modulos: ['sedes', 'personas', 'config'] },
+]
+
 // Qué módulos ve cada rol. El orden importa: el primero es donde aterriza al
 // entrar (ver rutaInicial).
 export const ROLE_ACCESS = {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import Manual from '../components/Manual'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -58,7 +59,7 @@ export default function Config() {
 
   return (
     <div className="pagina">
-      <h1>⚙️ Configuración</h1>
+      <h1>⚙️ Configuración<Manual modulo="config" /></h1>
       <p className="pagina-sub">Productos de stock, metas por sede/turno y días de inventario.</p>
 
       <div className="tab-bar">

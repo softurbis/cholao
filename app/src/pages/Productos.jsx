@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import Manual from '../components/Manual'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const num = (n) => Number(n || 0).toLocaleString('es-PE')
@@ -62,7 +63,7 @@ export default function Productos() {
 
   return (
     <div className="pagina">
-      <h1>🍧 Productos más vendidos</h1>
+      <h1>🍧 Productos más vendidos<Manual modulo="productos" /></h1>
       <p className="pagina-sub">Ranking por producto, categoría y canal. Filtra por sede y rango de meses.</p>
 
       <div className="form-inline">

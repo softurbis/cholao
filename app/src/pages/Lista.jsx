@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Recepcion from '../components/Recepcion'
+import Manual from '../components/Manual'
 
 // "Mi Lista" — lo que cada sede necesita que compren.
 //   Cocina: arma su lista con botones +/− (fácil en celular), le pone un
@@ -91,7 +92,7 @@ export default function Lista() {
     const lista = listaViva(perfil.sede_id)
     return (
       <div className="pagina">
-        <h1>📝 Mi Lista — {nombreSede(perfil.sede_id)}</h1>
+        <h1>📝 Mi Lista — {nombreSede(perfil.sede_id)}<Manual modulo="lista" /></h1>
         {msg && <div className="alerta">{msg}</div>}
         {lista && lista.estado === 'enviada'
           ? <ListaEnviada lista={lista} items={itemsDe(lista.id)} />
@@ -114,7 +115,7 @@ export default function Lista() {
   const abiertas = listas.filter((l) => l.estado === 'abierta')
   return (
     <div className="pagina">
-      <h1>📝 Listas de las sedes</h1>
+      <h1>📝 Listas de las sedes<Manual modulo="lista" /></h1>
       <p className="pagina-sub">Lo que enviaron las sedes. Libéralas si hay que corregir. El consolidado sumado está en Compras → Pedidos.</p>
       {msg && <div className="alerta">{msg}</div>}
 

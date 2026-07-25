@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { puedeEditar, veTodo, puedeGastos } from '../lib/roles'
+import Manual from '../components/Manual'
 
 // Módulo GASTOS unificado: gastos de tienda + adelantos/descuentos/bonos por
 // persona, todo con su voucher (o marcado "en efectivo, sin comprobante").
@@ -89,7 +90,7 @@ export default function Gastos() {
 
   return (
     <div className="pagina">
-      <h1>📉 Gastos</h1>
+      <h1>📉 Gastos<Manual modulo="gastos" /></h1>
       <p className="pagina-sub">
         Gastos de tienda y adelantos/descuentos/bonos, con su voucher.
         {veTodos ? ' Ves todo el movimiento.' : ' Registras y ves lo que tú anotas.'}

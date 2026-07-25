@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { ROLES, ROLES_ASIGNABLES, necesitaSede } from '../lib/roles'
+import Manual from '../components/Manual'
 import {
   crearUsuario, resetearClave, activarUsuario, eliminarUsuario,
   sugerirUsuario, sugerirPin, ES_PIN,
@@ -156,7 +157,7 @@ export default function Personas() {
 
   return (
     <div className="pagina">
-      <h1>👥 Personas</h1>
+      <h1>👥 Personas<Manual modulo="personas" /></h1>
       <p className="pagina-sub">El personal de El Cholao y quién entra al sistema.</p>
 
       {error && <div className="alerta">{error}</div>}

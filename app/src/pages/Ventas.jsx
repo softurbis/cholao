@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import Manual from '../components/Manual'
 
 const num = (n) => Number(n || 0).toLocaleString('es-PE')
 
@@ -25,7 +26,7 @@ export default function Ventas() {
 
   return (
     <div className="pagina">
-      <h1>💵 Ventas</h1>
+      <h1>💵 Ventas<Manual modulo="ventas" /></h1>
       <p className="pagina-sub">Módulo por construir. Aquí está todo lo que le falta, para armarlo después.</p>
 
       {stats && (

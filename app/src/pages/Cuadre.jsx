@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import Manual from '../components/Manual'
 import { fetchAll } from '../lib/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { puedeEditar } from '../lib/roles'
@@ -115,7 +116,7 @@ export default function Cuadre() {
 
   return (
     <div className="pagina">
-      <h1>🧮 Caja Diaria</h1>
+      <h1>🧮 Caja Diaria<Manual modulo="cuadre" /></h1>
       <p className="pagina-sub">Cuadre por turno: venta, medios de pago, gastos, descuentos al personal y stock.</p>
 
       <div className="tarjetas" style={{ marginBottom: 16 }}>

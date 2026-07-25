@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { esSuper } from '../lib/roles'
+import Manual from '../components/Manual'
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 // El código es lo que se guarda en caja_turno.turno; el nombre es lo que se lee.
@@ -79,7 +80,7 @@ export default function Sedes() {
 
   return (
     <div className="pagina">
-      <h1>🏪 Sedes</h1>
+      <h1>🏪 Sedes<Manual modulo="sedes" /></h1>
       <p className="pagina-sub">Los locales de El Cholao, sus turnos y su horario.</p>
 
       {error && <div className="alerta">{error}</div>}

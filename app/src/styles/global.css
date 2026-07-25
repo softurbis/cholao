@@ -415,6 +415,53 @@ body {
 }
 .paso-voucher > .t-label, .consolidado .t-label { display: block; margin-bottom: 4px; }
 
+/* ---------- Menú agrupado del panel izquierdo ---------- */
+.nav-grupo { margin-bottom: 2px; }
+.nav-grupo-cab {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 9px 12px; border: 0; background: transparent; cursor: pointer;
+  color: rgba(255,255,255,.62); font-family: inherit; font-size: 11px;
+  letter-spacing: .6px; text-transform: uppercase; text-align: left;
+}
+.nav-grupo-cab:hover { color: #fff; }
+.nav-grupo-ico { font-size: 13px; }
+.nav-grupo-lbl { flex: 1; }
+.nav-grupo-flecha { font-size: 10px; opacity: .8; }
+.nav-grupo .nav-item { padding-left: 26px; }
+
+/* ---------- Manual por módulo ----------
+   El botón va junto al título; el panel se abre en línea (en el celular las
+   ventanas flotantes tapan todo y cuesta cerrarlas). */
+.man-btn {
+  height: 36px; padding: 0 14px; margin-left: 10px; vertical-align: middle;
+  border-radius: 999px; border: 1px solid var(--linea); background: #fff;
+  font-family: inherit; font-size: 13px; color: var(--gris); cursor: pointer;
+}
+.man-btn:hover { border-color: var(--rojo); color: var(--rojo); }
+.man-panel {
+  margin: 10px 0 16px; padding: 16px 18px; background: #fff;
+  border: 1px solid var(--linea); border-left: 4px solid var(--amarillo);
+  border-radius: 0 12px 12px 0; max-width: 720px;
+}
+.man-titulo { margin: 0; font-size: 18px; }
+.man-quien { margin: 2px 0 0; font-size: 12px; color: var(--gris); }
+.man-resumen { margin: 8px 0 0; font-size: 15px; }
+.man-pasos { margin: 12px 0 0; padding-left: 20px; }
+.man-pasos li { margin-bottom: 10px; font-size: 14px; }
+.man-pasos strong { display: block; }
+.man-pasos span { color: var(--gris); }
+.man-ojo {
+  margin-top: 14px; padding: 10px 12px; background: #fffbeb;
+  border: 1px solid #fde68a; border-radius: 8px; font-size: 14px;
+}
+.man-ojo ul { margin: 6px 0 0; padding-left: 18px; }
+.man-ojo li { margin-bottom: 5px; }
+.man-nov { margin-top: 12px; font-size: 13px; }
+.man-nov summary { cursor: pointer; color: var(--gris); }
+.man-nov ul { margin: 8px 0 0; padding-left: 18px; }
+.man-nov li { margin-bottom: 4px; }
+.man-fecha { color: var(--gris); font-variant-numeric: tabular-nums; }
+
 /* ---------- Compras de hoy (la pantalla de Juan, pensada para el dedo) ----------
    Todo control que se toca mide 44px o más; el único campo con teclado es el precio. */
 .ch { max-width: 520px; margin: 0 auto; padding-bottom: 24px; }

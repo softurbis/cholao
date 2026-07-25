@@ -1,7 +1,7 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { canAccess, ROLES, MODULOS } from '../lib/roles'
+import { canAccess, ROLES, MODULOS, GRUPOS } from '../lib/roles'
 
 // Perfiles de prueba para el "Ver como" (solo lo usa el superusuario).
 const VER_COMO = [
@@ -24,6 +24,32 @@ export default function Layout({ children }) {
   // El Panel ya no es la excepción. Antes iba `n.key === 'dashboard' || …`, que
   // se lo mostraba a todos — incluida la cajera, que no debe ver el flujo.
   const items = MODULOS.filter((n) => canAccess(rol, n.key, { puedeGastos: perfil?.puede_gastos, puedeCompras: perfil?.puede_compras }))
+
+  // El menú agrupado. Solo se agrupa si hay bastantes módulos: a la cajera, que ve
+  // uno, un desplegable le añade un clic para nada.
+  const { pathname } = useLocation()
+  const grupos = useMemo(() => {
+    const gs = GRUPOS
+      .map((g) => ({ ...g, items: g.modulos.map((k) => items.find((i) => i.key === k)).filter(Boolean) }))
+      .filter((g) => g.items.length > 0)
+    // Red de seguridad: un módulo nuevo que nadie puso en un grupo NO puede
+    // desaparecer del menú en silencio. Cae aquí y se ve igual.
+    const enGrupos = new Set(GRUPOS.flatMap((g) => g.modulos))
+    const sueltos = items.filter((i) => !enGrupos.has(i.key))
+    return sueltos.length ? [...gs, { key: 'otros', label: 'Otros', icon: '📎', items: sueltos }] : gs
+  }, [items])
+  const agrupar = items.length > 3
+  // Arranca abierto el grupo donde estás parado, para no esconderte lo que usas.
+  const [cerrados, setCerrados] = useState(() => {
+    const s = {}
+    for (const g of GRUPOS) {
+      const mods = MODULOS.filter((m) => g.modulos.includes(m.key))
+      const aqui = mods.some((m) => m.to === pathname || (m.to !== '/' && pathname.startsWith(m.to)))
+      if (!aqui) s[g.key] = true
+    }
+    return s
+  })
+  const alternar = (k) => setCerrados((c) => ({ ...c, [k]: !c[k] }))
 
   async function salir() {
     await signOut()
@@ -58,17 +84,35 @@ export default function Layout({ children }) {
         )}
 
         <nav>
-          {items.map((n) => (
-            <NavLink
-              key={n.key}
-              to={n.to}
-              end={n.to === '/'}
-              className={({ isActive }) => (isActive ? 'nav-item activo' : 'nav-item')}
-              onClick={() => setOpen(false)}
-            >
-              <span>{n.icon}</span> {n.label}
-            </NavLink>
-          ))}
+          {!agrupar
+            ? items.map((n) => (
+              <NavLink
+                key={n.key} to={n.to} end={n.to === '/'}
+                className={({ isActive }) => (isActive ? 'nav-item activo' : 'nav-item')}
+                onClick={() => setOpen(false)}
+              >
+                <span>{n.icon}</span> {n.label}
+              </NavLink>
+            ))
+            : grupos.map((g) => (
+              <div key={g.key} className="nav-grupo">
+                <button type="button" className="nav-grupo-cab" onClick={() => alternar(g.key)}
+                  aria-expanded={!cerrados[g.key]}>
+                  <span className="nav-grupo-ico">{g.icon}</span>
+                  <span className="nav-grupo-lbl">{g.label}</span>
+                  <span className="nav-grupo-flecha">{cerrados[g.key] ? '▸' : '▾'}</span>
+                </button>
+                {!cerrados[g.key] && g.items.map((n) => (
+                  <NavLink
+                    key={n.key} to={n.to} end={n.to === '/'}
+                    className={({ isActive }) => (isActive ? 'nav-item activo' : 'nav-item')}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span>{n.icon}</span> {n.label}
+                  </NavLink>
+                ))}
+              </div>
+            ))}
         </nav>
         <div className="sidebar-pie">
           <div className="usuario">
