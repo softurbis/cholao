@@ -6,6 +6,7 @@ import { puedeCompras, puedeEditar } from '../lib/roles'
 import Recepcion from '../components/Recepcion'
 import ComprasHoy from '../components/ComprasHoy'
 import ControlCompras from '../components/ControlCompras'
+import ConteoAlmacen from '../components/ConteoAlmacen'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -240,7 +241,7 @@ export default function Compras() {
         {[['hoy', '🛒 Comprar hoy'], ['fondo', '💵 Caja de Juan'],
           // El panel de revisión es de Cesar/admin: Juan opera, no se audita solo.
           ...(esCesar ? [['control', '🔎 Control']] : []),
-          ['recepcion', '📥 Recepción'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['entregas', 'Entregas'], ['pedidos', '📋 Pedidos'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
+          ['pedidos', '📋 Pedidos a Cesar'], ['recepcion', '📥 Recepción'], ['conteo', '🔢 Conteo almacén'], ['kardex', '🏬 Almacén / Kardex'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['entregas', 'Entregas'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -346,6 +347,9 @@ export default function Compras() {
       )}
       {vista === 'control' && esCesar && (
         <ControlCompras sedes={sedes} catalogo={catalogo} />
+      )}
+      {vista === 'conteo' && (
+        <ConteoAlmacen perfil={perfil} puedeContar={esAdmin} />
       )}
       {vista === 'recepcion' && (
         <RecepcionTab sedes={sedes} perfil={perfil} puedeRecibir={esAdmin} />

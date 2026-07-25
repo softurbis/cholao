@@ -11,8 +11,12 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-_Nada pendiente de SQL._ Fases 1 y 2 del rediseño **desplegadas** (commits `aac42cb`,
-`8f3539b`, `fd44c41`). Falta la fase 3 (ver abajo) y que Juan lo use unos días.
+1. ⬜ **Correr `sql/31_conteo_almacen.sql`** — tabla `almacen_conteos` + `vista_ultimo_conteo`.
+   Mismo principio que el efectivo contado: el stock del sistema siempre cuadra consigo mismo;
+   si algo se perdió o salió sin anotarse, solo se sabe **contando**. Después: `bash deploy.sh`
+   + commit + push. **El frontend que lo usa ya está en código, sin desplegar.**
+
+_(Fases 1 y 2 desplegadas: commits `aac42cb`, `8f3539b`, `fd44c41`.)_
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -52,8 +56,23 @@ Más el detalle completo del día con sus vouchers. El conteo también se puede 
   de más (35 en vez de 3.50) y ver cuándo se movió el mercado.
 - La **cadena pidieron → compró → llegó va en los dos lados**: en 📥 Recepción (con lo que
   Juan compró PARA esa sede desde que se envió la lista) y en 🔎 Control con columna "Falta".
-**Fase 3 — pendiente:** retirar `Pedidos`/`Entregas` y simplificar la recepción. Se dejan
-en pie a propósito hasta que Juan valide la pantalla nueva.
+**Fase 3 — HECHA, falta correr sql/31 + desplegar.** ⚠️ Corrección del usuario: **el pedido
+al por mayor Juan→Cesar SE QUEDA** (Juan pide, **Cesar** compra al por mayor e ingresa el
+stock; Juan NO ingresa stock). Y cuando falta algo, **primero se mira el almacén**. Entonces
+cada producto tiene **3 salidas**, y ahora las tres están en la misma pantalla:
+1. **Del almacén** — si hay stock, se entrega (modo por defecto cuando hay: no gastar plata
+   en algo que ya está guardado). Crea la salida hacia la sede.
+2. **Comprar** — con la plata de su caja.
+3. **Pedir a Cesar** — el abastecimiento al por mayor; entra a `pedido_items`. No toca su caja.
+La fila muestra cuánto hay en almacén y cuánto ya se pidió a Cesar.
+
+**🔢 Conteo almacén** (`ConteoAlmacen.jsx`): Juan cuenta lo que hay de verdad; se guarda en
+`almacen_conteos` (sistema / contado / diferencia) y se ajusta el kardex con nota `CONTEO`.
+Muestra el último conteo por producto y el historial — las diferencias que se repiten en el
+mismo producto no son casualidad.
+
+**Sigue pendiente:** `Entregas` (tabla muerta, no la escribe nadie) y el consolidado que no
+se limpia solo.
 
 ⚠️ **Limitación conocida:** el consolidado **no se limpia solo** — las vistas filtran
 `compras_lista_items.comprado = false` y nada pone ese campo en true. Hoy solo desaparece
@@ -89,7 +108,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→30. **Pendiente:** ninguno.
+**SQL corridos:** 01→30. **Pendiente:** sql/31.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 

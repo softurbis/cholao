@@ -3,20 +3,24 @@ import { supabase } from '../lib/supabase'
 
 // "Compras de hoy" — la pantalla ÚNICA con la que Juan trabaja en el celular.
 //
-// Reemplaza el ir y venir entre Pedidos + formulario de compras + almacén. La idea:
-//   · arriba su saldo EN VIVO (los tres riesgos del negocio son de dinero);
-//   · el comprobante se toma UNA vez al llegar al proveedor y queda "activo":
-//     todo lo que registre ahí se le engancha solo (antes era una foto por producto);
-//   · cada cosa que pidieron las sedes es una fila; al tocarla ajusta la cantidad
-//     con +/− grandes (arranca en lo pedido — su criterio manda), precio y destino.
+// Cuando una sede pide algo, Juan tiene TRES salidas, y las tres están aquí:
+//   1. DEL ALMACÉN  → si ya hay stock, se lo entrega y sale del almacén.
+//   2. COMPRAR      → lo compra en el mercado con la plata de su caja.
+//   3. PEDIR A CESAR→ el abastecimiento al por mayor; Cesar compra e ingresa el
+//                     stock al almacén (eso NO lo hace Juan).
+// Antes cada una vivía en una pestaña distinta y había que saltar entre ellas.
 //
-// Un solo toque guarda la compra, la descuenta de su caja y define a dónde va:
-//   destino ALMACÉN → entra al kardex (ingreso).
-//   destino SEDE    → entrega directa; NO toca el stock central (esa mercadería
-//                     nunca pasó por el almacén; descontarla lo dejaba en negativo).
+// Lo demás que sostiene la pantalla:
+//   · el saldo del día EN VIVO arriba (los tres riesgos del negocio son de dinero);
+//   · el comprobante se toma UNA vez al llegar al proveedor y queda "activo";
+//   · +/− grandes, un solo campo con teclado (el precio), destino en pastillas.
+//
+// Al comprar: destino ALMACÉN → ingreso al kardex. Destino SEDE → entrega directa,
+// NO toca el stock central (esa mercadería nunca pasó por el almacén; descontarla
+// lo dejaba en negativo).
 //
 // La lista de las sedes es GUÍA, no contrato: si pidieron 10 y compró 8, se guarda
-// 8 y la diferencia queda registrada sola, sin que nadie la calcule.
+// 8 y la diferencia queda registrada sola.
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const diaAnterior = (iso) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() - 1); return fmt(d) }
@@ -25,20 +29,19 @@ const num = (v) => Number(v || 0)
 export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
   const hoy = fmt(new Date())
   const [cargando, setCargando] = useState(true)
-  const [consol, setConsol] = useState([])          // vista_consolidado_sede
-  const [compras, setCompras] = useState([])        // compras de HOY
+  const [consol, setConsol] = useState([])
+  const [compras, setCompras] = useState([])
+  const [stock, setStock] = useState({})            // {producto_id: cantidad en almacén}
+  const [pedItems, setPedItems] = useState([])      // lo ya pedido a Cesar (pedido abierto)
   const [caja, setCaja] = useState({ base: 0, manana: 0, tarde: 0, adic: 0, entregas: 0 })
   const [proveedores, setProveedores] = useState([])
-  const [refPrecios, setRefPrecios] = useState({})   // precio promedio de los últimos 30 días
+  const [refPrecios, setRefPrecios] = useState({})
 
-  // Comprobante ACTIVO: se define al llegar al proveedor y vale para todo lo que
-  // registre ahí. {proveedor, voucher_url, comprobante, efectivo}
-  const [comp, setComp] = useState(null)
+  const [comp, setComp] = useState(null)            // comprobante activo
   const [panelComp, setPanelComp] = useState(false)
-
-  const [abierto, setAbierto] = useState(null)      // clave del producto abierto
-  const [bor, setBor] = useState({ cantidad: '', precio: '', destino: '' })
-  const [otro, setOtro] = useState('')              // producto fuera de la lista
+  const [abierto, setAbierto] = useState(null)
+  const [bor, setBor] = useState({ modo: 'comprar', cantidad: '', precio: '', destino: '' })
+  const [otro, setOtro] = useState('')
   const [msg, setMsg] = useState('')
   const [ocupado, setOcupado] = useState(false)
 
@@ -49,7 +52,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
     setCargando(true)
     const ayer = diaAnterior(hoy)
     const hace30 = new Date(hoy + 'T12:00:00'); hace30.setDate(hace30.getDate() - 30)
-    const [cs, cp, dia, prev, movs, turnos, prov, hist] = await Promise.all([
+    const [cs, cp, dia, prev, movs, turnos, prov, hist, st, peds] = await Promise.all([
       supabase.from('vista_consolidado_sede').select('*'),
       supabase.from('compras').select('*').eq('fecha', hoy),
       supabase.from('fondo_compras_dia').select('*').eq('fecha', hoy).maybeSingle(),
@@ -58,9 +61,10 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
       amazonas ? supabase.from('caja_turno').select('turno, efectivo').eq('sede_id', amazonas.id).eq('fecha', ayer) : Promise.resolve({ data: [] }),
       supabase.from('proveedores').select('nombre').order('nombre'),
       supabase.from('compras').select('producto_id, precio_unitario').gte('fecha', fmt(hace30)).lt('fecha', hoy),
+      supabase.from('vista_almacen_stock').select('*'),
+      supabase.from('pedidos').select('id, estado').eq('estado', 'pendiente').order('fecha', { ascending: false }).limit(1),
     ])
-    // Precio de referencia por producto: para avisarle si se le fue un dedo (35 en vez
-    // de 3.50) o si el mercado se movió de verdad. Es un aviso, nunca bloquea.
+    // Precio de referencia: para avisarle si se le fue un dedo (35 en vez de 3.50).
     const ref = {}
     for (const h of (hist.data || [])) {
       if (!h.producto_id || !num(h.precio_unitario)) continue
@@ -68,6 +72,11 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
       ref[h.producto_id].s += num(h.precio_unitario); ref[h.producto_id].n++
     }
     setRefPrecios(Object.fromEntries(Object.entries(ref).map(([k, v]) => [k, v.s / v.n])))
+    setStock(Object.fromEntries((st.data || []).map((x) => [x.producto_id, num(x.stock)])))
+
+    const ped = (peds.data || [])[0]
+    setPedItems(ped ? ((await supabase.from('pedido_items').select('*').eq('pedido_id', ped.id)).data || []) : [])
+
     const row = dia.data
     const tMan = (turnos.data || []).find((t) => t.turno === 'manana')?.efectivo
     const tTar = (turnos.data || []).find((t) => t.turno === 'tarde')?.efectivo
@@ -87,11 +96,10 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
   const gastado = compras.reduce((a, c) => a + num(c.total), 0)
   const teQueda = caja.base + caja.manana + caja.tarde + caja.adic - gastado - caja.entregas
 
-  // Lo que pidieron las sedes, por producto, con el desglose por sede.
   const pedidos = useMemo(() => {
     const m = {}
     for (const c of consol) {
-      if (String(c.clave).startsWith('libre:')) continue   // texto libre: no se puede comprar contra catálogo
+      if (String(c.clave).startsWith('libre:')) continue
       m[c.clave] = m[c.clave] || { clave: c.clave, producto: c.producto, unidad: c.unidad, sedes: [], total: 0 }
       m[c.clave].sedes.push({ id: c.sede_id, nombre: c.sede, cantidad: num(c.cantidad) })
       m[c.clave].total += num(c.cantidad)
@@ -99,20 +107,23 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
     return Object.values(m).sort((a, b) => a.producto.localeCompare(b.producto))
   }, [consol])
 
-  // Lo ya comprado hoy, por producto (para marcar la fila en verde).
   const compradoDe = useMemo(() => {
     const m = {}
     for (const c of compras) {
       if (!c.producto_id) continue
-      m[c.producto_id] = m[c.producto_id] || { cantidad: 0, monto: 0, unidad: c.unidad, sedes: new Set() }
+      m[c.producto_id] = m[c.producto_id] || { cantidad: 0, monto: 0 }
       m[c.producto_id].cantidad += num(c.cantidad)
       m[c.producto_id].monto += num(c.total)
-      if (c.destino_sede_id) m[c.producto_id].sedes.add(c.destino_sede_id)
     }
     return m
   }, [compras])
 
-  // Compras de hoy que NO estaban en la lista de las sedes (las de su criterio).
+  const pedidoDe = useMemo(() => {
+    const m = {}
+    for (const it of pedItems) if (it.producto_id) m[it.producto_id] = (m[it.producto_id] || 0) + num(it.cantidad)
+    return m
+  }, [pedItems])
+
   const extras = useMemo(() => {
     const enLista = new Set(pedidos.map((p) => p.clave))
     return Object.keys(compradoDe).filter((pid) => !enLista.has(pid))
@@ -122,57 +133,68 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
     setMsg('')
     if (abierto === p.clave) return setAbierto(null)
     setAbierto(p.clave)
-    // Arranca en lo que pidieron y, si una sola sede lo pidió, ya marca ese destino:
-    // el caso común queda en cero toques.
     const ya = compradoDe[p.clave]?.cantidad || 0
     const falta = Math.max(0, p.total - ya)
+    const hay = stock[p.clave] || 0
     setBor({
-      cantidad: String(falta || p.total),
+      // Si hay en el almacén, esa es la primera opción: no gastar plata en algo que ya está.
+      modo: hay > 0 ? 'almacen' : 'comprar',
+      cantidad: String(falta || p.total || 1),
       precio: '',
-      destino: p.sedes.length === 1 ? p.sedes[0].id : 'almacen',
+      destino: p.sedes.length === 1 ? p.sedes[0].id : (hay > 0 ? '' : 'almacen'),
     })
   }
-  function paso(delta) {
-    setBor((b) => ({ ...b, cantidad: String(Math.max(0, Math.round((num(b.cantidad) + delta) * 1000) / 1000)) }))
-  }
-
-  const totalLinea = num(bor.cantidad) * num(bor.precio)
+  const paso = (delta) => setBor((b) => ({ ...b, cantidad: String(Math.max(0, Math.round((num(b.cantidad) + delta) * 1000) / 1000)) }))
 
   async function guardar(p) {
-    if (!comp) { setPanelComp(true); return setMsg('Primero dime dónde estás comprando.') }
-    if (!(num(bor.cantidad) > 0)) return setMsg('La cantidad debe ser mayor a 0.')
-    if (!(num(bor.precio) > 0)) return setMsg('Falta el precio.')
-    if (!bor.destino) return setMsg('Elige a dónde va.')
-    setOcupado(true); setMsg('')
+    const cant = num(bor.cantidad)
+    if (!(cant > 0)) return setMsg('La cantidad debe ser mayor a 0.')
+    setMsg(''); setOcupado(true)
+    try {
+      if (bor.modo === 'almacen') {
+        if (!bor.destino || bor.destino === 'almacen') { setOcupado(false); return setMsg('¿A qué sede se lo entregas?') }
+        const hay = stock[p.clave] || 0
+        if (cant > hay) { setOcupado(false); return setMsg(`En el almacén solo hay ${hay} ${p.unidad}.`) }
+        const { error } = await supabase.from('almacen_movimientos').insert({
+          producto_id: p.clave, tipo: 'salida', cantidad: cant, sede_id: bor.destino, nota: 'Entrega', fecha: hoy,
+        })
+        if (error) throw error
 
-    const prod = prodN[p.clave]
-    const alAlmacen = bor.destino === 'almacen'
-    const { error } = await supabase.from('compras').insert({
-      fecha: hoy,
-      producto_id: p.clave,
-      nombre_libre: p.producto,
-      cantidad: num(bor.cantidad),
-      unidad: prod?.unidad || p.unidad,
-      precio_unitario: num(bor.precio),      // total = cantidad × precio (columna GENERADA)
-      proveedor: comp.proveedor || null,
-      destino_sede_id: alAlmacen ? null : bor.destino,
-      medio_pago: comp.efectivo ? 'efectivo' : 'otro',
-      comprobante: comp.efectivo ? 'EFECTIVO' : (comp.comprobante || 'VOUCHER'),
-      voucher_url: comp.voucher_url || null,
-      registrado_por: perfil?.id || null,
-    })
-    if (error) { setOcupado(false); return setMsg(error.message) }
+      } else if (bor.modo === 'pedir') {
+        // El abastecimiento al por mayor: Juan lo pide, Cesar lo compra e ingresa.
+        let ped = (await supabase.from('pedidos').select('id').eq('estado', 'pendiente').order('fecha', { ascending: false }).limit(1)).data?.[0]
+        if (!ped) ped = (await supabase.from('pedidos').insert({ estado: 'pendiente', creado_por: perfil?.id || null }).select().single()).data
+        const { error } = await supabase.from('pedido_items').insert({
+          pedido_id: ped.id, producto_id: p.clave, cantidad: cant,
+          unidad: prodN[p.clave]?.unidad || p.unidad, comprado: false,
+        })
+        if (error) throw error
 
-    // Solo lo que se guarda en el almacén entra al kardex. Lo que va directo a una
-    // sede queda registrado en `compras` con su destino, sin tocar el stock central.
-    if (alAlmacen) {
-      await supabase.from('almacen_movimientos').insert({
-        producto_id: p.clave, tipo: 'ingreso', cantidad: num(bor.cantidad),
-        nota: 'Compra ' + (comp.proveedor || ''), fecha: hoy,
-      })
-    }
-    setOcupado(false); setAbierto(null); setOtro('')
-    await cargar(); onCambio?.()
+      } else {
+        if (!(num(bor.precio) > 0)) { setOcupado(false); return setMsg('Falta el precio.') }
+        if (!bor.destino) { setOcupado(false); return setMsg('Elige a dónde va.') }
+        if (!comp) { setOcupado(false); setPanelComp(true); return setMsg('Primero dime dónde estás comprando.') }
+        const alAlmacen = bor.destino === 'almacen'
+        const { error } = await supabase.from('compras').insert({
+          fecha: hoy, producto_id: p.clave, nombre_libre: p.producto, cantidad: cant,
+          unidad: prodN[p.clave]?.unidad || p.unidad, precio_unitario: num(bor.precio),
+          proveedor: comp.proveedor || null, destino_sede_id: alAlmacen ? null : bor.destino,
+          medio_pago: comp.efectivo ? 'efectivo' : 'otro',
+          comprobante: comp.efectivo ? 'EFECTIVO' : (comp.comprobante || 'VOUCHER'),
+          voucher_url: comp.voucher_url || null, registrado_por: perfil?.id || null,
+        })
+        if (error) throw error
+        // Solo lo que se guarda entra al kardex; lo que va directo a la sede no.
+        if (alAlmacen) {
+          await supabase.from('almacen_movimientos').insert({
+            producto_id: p.clave, tipo: 'ingreso', cantidad: cant, nota: 'Compra ' + (comp.proveedor || ''), fecha: hoy,
+          })
+        }
+      }
+      setAbierto(null); setOtro('')
+      await cargar(); onCambio?.()
+    } catch (e) { setMsg(e.message || String(e)) }
+    setOcupado(false)
   }
 
   if (cargando) return <p className="nota">Cargando…</p>
@@ -180,6 +202,8 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
   const filas = [...pedidos, ...extras.map((pid) => ({
     clave: pid, producto: prodN[pid]?.nombre || '—', unidad: prodN[pid]?.unidad || '', sedes: [], total: 0, extra: true,
   }))]
+
+  const formProps = { bor, setBor, sedes, paso, ocupado, refPrecios, msg }
 
   return (
     <div className="ch">
@@ -202,11 +226,13 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
       {msg && <div className="alerta">{msg}</div>}
 
       {filas.length === 0 && (
-        <div className="bloque-vacio"><p>Ninguna sede ha enviado su lista todavía. Igual puedes registrar una compra con “Otro producto”.</p></div>
+        <div className="bloque-vacio"><p>Ninguna sede ha enviado su lista todavía. Igual puedes registrar algo con “Otro producto”.</p></div>
       )}
 
       {filas.map((p) => {
         const ya = compradoDe[p.clave]
+        const hay = stock[p.clave] || 0
+        const pedidoACesar = pedidoDe[p.clave] || 0
         const listo = ya && (p.extra || ya.cantidad >= p.total)
         return (
           <div key={p.clave} className={`ch-fila ${abierto === p.clave ? 'ch-abierta' : ''} ${listo ? 'ch-listo' : ''}`}>
@@ -221,43 +247,16 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
                 ) : (
                   <span className="ch-sub">Pidieron {p.total} {p.unidad} · {p.sedes.map((s) => `${s.nombre} ${s.cantidad}`).join(' · ')}</span>
                 )}
+                <span className="ch-sub2">
+                  {hay > 0 ? <span className="ch-hay">Almacén: {hay} {p.unidad}</span> : <span className="ch-nohay">Sin stock</span>}
+                  {pedidoACesar > 0 && <span className="ch-ped"> · pedido a Cesar: {pedidoACesar}</span>}
+                </span>
               </div>
               {listo
                 ? <span className="ch-check">✓</span>
-                : <button type="button" className="ch-btn-comprar">{abierto === p.clave ? 'Cerrar' : 'Comprar'}</button>}
+                : <button type="button" className="ch-btn-comprar">{abierto === p.clave ? 'Cerrar' : 'Atender'}</button>}
             </div>
-
-            {abierto === p.clave && (
-              <div className="ch-form">
-                <div className="ch-stepper">
-                  <button type="button" className="li-btn" onClick={() => paso(-1)}>−</button>
-                  <div className="ch-cant">
-                    <input inputMode="decimal" value={bor.cantidad} onChange={(e) => setBor({ ...bor, cantidad: e.target.value })} />
-                    <span>{p.unidad}</span>
-                  </div>
-                  <button type="button" className="li-btn li-mas" onClick={() => paso(+1)}>+</button>
-                </div>
-
-                <label className="ch-lbl">Precio por {p.unidad}</label>
-                <input className="ch-precio" inputMode="decimal" placeholder="0.00"
-                  value={bor.precio} onChange={(e) => setBor({ ...bor, precio: e.target.value })} />
-                <AvisoPrecio promedio={refPrecios[p.clave]} precio={bor.precio} unidad={p.unidad} />
-
-                <label className="ch-lbl">Va a</label>
-                <div className="ch-pills">
-                  {sedes.map((s) => (
-                    <button type="button" key={s.id} className={bor.destino === s.id ? 'ch-pill act' : 'ch-pill'}
-                      onClick={() => setBor({ ...bor, destino: s.id })}>{s.nombre}</button>
-                  ))}
-                  <button type="button" className={bor.destino === 'almacen' ? 'ch-pill act' : 'ch-pill'}
-                    onClick={() => setBor({ ...bor, destino: 'almacen' })}>Almacén</button>
-                </div>
-
-                <button type="button" className="ch-guardar" disabled={ocupado} onClick={() => guardar(p)}>
-                  {ocupado ? 'Guardando…' : `Guardar · ${soles(totalLinea)}`}
-                </button>
-              </div>
-            )}
+            {abierto === p.clave && <FormLinea {...formProps} p={p} hay={hay} onGuardar={() => guardar(p)} />}
           </div>
         )
       })}
@@ -265,7 +264,11 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
       <div className="ch-otro">
         <select value={otro} onChange={(e) => {
           const pid = e.target.value; setOtro(pid)
-          if (pid) { setAbierto(pid); setBor({ cantidad: '1', precio: '', destino: 'almacen' }) }
+          if (pid) {
+            const hay = stock[pid] || 0
+            setAbierto(pid)
+            setBor({ modo: hay > 0 ? 'almacen' : 'comprar', cantidad: '1', precio: '', destino: hay > 0 ? '' : 'almacen' })
+          }
         }}>
           <option value="">+ Otro producto (fuera de la lista)</option>
           {catalogo.filter((x) => x.activo).map((x) => <option key={x.id} value={x.id}>{x.nombre} ({x.unidad})</option>)}
@@ -274,37 +277,81 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
 
       {otro && abierto === otro && !filas.some((f) => f.clave === otro) && (
         <div className="ch-fila ch-abierta">
-          <div className="ch-cab"><div className="ch-info"><strong>{prodN[otro]?.nombre}</strong>
-            <span className="ch-sub">No estaba en la lista</span></div></div>
-          <div className="ch-form">
-            <div className="ch-stepper">
-              <button type="button" className="li-btn" onClick={() => paso(-1)}>−</button>
-              <div className="ch-cant">
-                <input inputMode="decimal" value={bor.cantidad} onChange={(e) => setBor({ ...bor, cantidad: e.target.value })} />
-                <span>{prodN[otro]?.unidad}</span>
-              </div>
-              <button type="button" className="li-btn li-mas" onClick={() => paso(+1)}>+</button>
-            </div>
-            <label className="ch-lbl">Precio por {prodN[otro]?.unidad}</label>
-            <input className="ch-precio" inputMode="decimal" placeholder="0.00"
-              value={bor.precio} onChange={(e) => setBor({ ...bor, precio: e.target.value })} />
-            <AvisoPrecio promedio={refPrecios[otro]} precio={bor.precio} unidad={prodN[otro]?.unidad} />
-            <label className="ch-lbl">Va a</label>
-            <div className="ch-pills">
-              {sedes.map((s) => (
-                <button type="button" key={s.id} className={bor.destino === s.id ? 'ch-pill act' : 'ch-pill'}
-                  onClick={() => setBor({ ...bor, destino: s.id })}>{s.nombre}</button>
-              ))}
-              <button type="button" className={bor.destino === 'almacen' ? 'ch-pill act' : 'ch-pill'}
-                onClick={() => setBor({ ...bor, destino: 'almacen' })}>Almacén</button>
-            </div>
-            <button type="button" className="ch-guardar" disabled={ocupado}
-              onClick={() => guardar({ clave: otro, producto: prodN[otro]?.nombre, unidad: prodN[otro]?.unidad, total: 0, sedes: [] })}>
-              {ocupado ? 'Guardando…' : `Guardar · ${soles(totalLinea)}`}
-            </button>
-          </div>
+          <div className="ch-cab"><div className="ch-info">
+            <strong>{prodN[otro]?.nombre}</strong>
+            <span className="ch-sub">No estaba en la lista</span>
+            <span className="ch-sub2">{(stock[otro] || 0) > 0
+              ? <span className="ch-hay">Almacén: {stock[otro]} {prodN[otro]?.unidad}</span>
+              : <span className="ch-nohay">Sin stock</span>}</span>
+          </div></div>
+          <FormLinea {...formProps} hay={stock[otro] || 0}
+            p={{ clave: otro, producto: prodN[otro]?.nombre, unidad: prodN[otro]?.unidad, total: 0, sedes: [] }}
+            onGuardar={() => guardar({ clave: otro, producto: prodN[otro]?.nombre, unidad: prodN[otro]?.unidad, total: 0, sedes: [] })} />
         </div>
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// El formulario de una línea, con las tres salidas. Se usa igual para un producto
+// de la lista y para uno suelto, así no hay dos formularios que mantener.
+function FormLinea({ p, hay, bor, setBor, sedes, paso, ocupado, refPrecios, onGuardar }) {
+  const total = num(bor.cantidad) * num(bor.precio)
+  const modos = [
+    ...(hay > 0 ? [['almacen', 'Del almacén']] : []),
+    ['comprar', 'Comprar'],
+    ['pedir', 'Pedir a Cesar'],
+  ]
+  return (
+    <div className="ch-form">
+      <div className="ch-modos">
+        {modos.map(([k, l]) => (
+          <button type="button" key={k} className={bor.modo === k ? 'ch-modo act' : 'ch-modo'}
+            onClick={() => setBor({ ...bor, modo: k })}>{l}</button>
+        ))}
+      </div>
+
+      <div className="ch-stepper">
+        <button type="button" className="li-btn" onClick={() => paso(-1)}>−</button>
+        <div className="ch-cant">
+          <input inputMode="decimal" value={bor.cantidad} onChange={(e) => setBor({ ...bor, cantidad: e.target.value })} />
+          <span>{p.unidad}</span>
+        </div>
+        <button type="button" className="li-btn li-mas" onClick={() => paso(+1)}>+</button>
+      </div>
+
+      {bor.modo === 'comprar' && (<>
+        <label className="ch-lbl">Precio por {p.unidad}</label>
+        <input className="ch-precio" inputMode="decimal" placeholder="0.00"
+          value={bor.precio} onChange={(e) => setBor({ ...bor, precio: e.target.value })} />
+        <AvisoPrecio promedio={refPrecios[p.clave]} precio={bor.precio} unidad={p.unidad} />
+      </>)}
+
+      {bor.modo === 'pedir' && (
+        <p className="ch-aviso">Se lo pides a Cesar para que lo compre al por mayor e ingrese al almacén. No sale plata de tu caja.</p>
+      )}
+
+      {bor.modo !== 'pedir' && (<>
+        <label className="ch-lbl">{bor.modo === 'almacen' ? 'Se lo entregas a' : 'Va a'}</label>
+        <div className="ch-pills">
+          {sedes.map((s) => (
+            <button type="button" key={s.id} className={bor.destino === s.id ? 'ch-pill act' : 'ch-pill'}
+              onClick={() => setBor({ ...bor, destino: s.id })}>{s.nombre}</button>
+          ))}
+          {bor.modo === 'comprar' && (
+            <button type="button" className={bor.destino === 'almacen' ? 'ch-pill act' : 'ch-pill'}
+              onClick={() => setBor({ ...bor, destino: 'almacen' })}>Almacén</button>
+          )}
+        </div>
+      </>)}
+
+      <button type="button" className="ch-guardar" disabled={ocupado} onClick={onGuardar}>
+        {ocupado ? 'Guardando…'
+          : bor.modo === 'almacen' ? `Entregar ${bor.cantidad || 0} ${p.unidad}`
+          : bor.modo === 'pedir' ? `Pedir ${bor.cantidad || 0} ${p.unidad} a Cesar`
+          : `Guardar · ${soles(total)}`}
+      </button>
     </div>
   )
 }

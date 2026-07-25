@@ -488,6 +488,20 @@ body {
   width: 100%; height: 46px; margin-top: 8px; border-radius: 10px;
   border: 1px solid var(--linea); background: #fff; font-family: inherit; font-size: 14px; cursor: pointer;
 }
+/* Stock del almacén en la fila: para no comprar lo que ya está guardado */
+.ch-sub2 { font-size: 12px; margin-top: 1px; }
+.ch-hay { color: #15803d; font-weight: 700; }
+.ch-nohay { color: var(--gris); }
+.ch-ped { color: var(--azul); }
+
+/* Las tres salidas de un producto: del almacén, comprarlo, o pedírselo a Cesar */
+.ch-modos { display: flex; gap: 6px; margin: 12px 0 4px; }
+.ch-modo {
+  flex: 1; height: 42px; border-radius: 10px; border: 1px solid var(--linea);
+  background: #f4f4f5; font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.ch-modo.act { background: var(--tinta); color: #fff; border-color: transparent; }
+
 /* Aviso de precio raro: informa, no bloquea */
 .ch-aviso {
   margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 13px;
