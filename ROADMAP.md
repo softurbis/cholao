@@ -11,14 +11,8 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-1. ⬜ **Correr `sql/30_efectivo_contado.sql`** — agrega `fondo_compras_dia.efectivo_contado`.
-   POR QUÉ: el saldo que calcula el sistema (recibió − compras − entregas) **siempre cuadra**,
-   porque es aritmética sobre lo que el propio Juan registró. Si falta plata, el número no se
-   entera. El único control real es **contar el efectivo físico** y comparar. Después:
-   `bash deploy.sh` + commit + push.
-
-_(sql/29 corrido; sql/28 desplegado el 17-jul, commit `50eb37b`; "Comprar hoy" desplegada
-el 24-jul, commit `aac42cb`.)_
+_Nada pendiente de SQL._ Fases 1 y 2 del rediseño **desplegadas** (commits `aac42cb`,
+`8f3539b`, `fd44c41`). Falta la fase 3 (ver abajo) y que Juan lo use unos días.
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -51,6 +45,13 @@ no bloquea. Responde 4 preguntas, todas en soles:
 4. **¿Se cubrió lo pedido?** — qué pidieron las sedes y no se compró.
 Más el detalle completo del día con sus vouchers. El conteo también se puede hacer desde
 💵 Caja de Juan al cerrar (que es cuando corresponde).
+
+**Ajustes pedidos por el usuario (24-jul, ya desplegados):**
+- El **aviso de precio ahora también le sale a Juan** en su pantalla, antes de guardar
+  (`AvisoPrecio` en ComprasHoy). No bloquea: el precio lo pone él. Sirve para pescar el dedo
+  de más (35 en vez de 3.50) y ver cuándo se movió el mercado.
+- La **cadena pidieron → compró → llegó va en los dos lados**: en 📥 Recepción (con lo que
+  Juan compró PARA esa sede desde que se envió la lista) y en 🔎 Control con columna "Falta".
 **Fase 3 — pendiente:** retirar `Pedidos`/`Entregas` y simplificar la recepción. Se dejan
 en pie a propósito hasta que Juan valide la pantalla nueva.
 
@@ -88,7 +89,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→29. **Pendiente:** sql/30.
+**SQL corridos:** 01→30. **Pendiente:** ninguno.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 
