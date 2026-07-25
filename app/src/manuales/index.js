@@ -66,6 +66,28 @@ export const MANUALES = {
   },
 
   // -------------------------------------------------------------------
+  asistencia: {
+    titulo: 'Asistencia',
+    paraQuien: 'Todo el personal marca. Gerencia y administración revisan.',
+    resumen: 'Marca tu entrada y tu salida desde tu celular, con tu ubicación y una foto.',
+    pasos: [
+      { t: 'Toca "Marcar mi entrada"', d: 'El celular te va a pedir permiso de ubicación: dale que sí. Si no lo das, no puedes marcar.' },
+      { t: 'Espera la ubicación', d: 'Tarda unos segundos. Si demora mucho, sal al aire libre: dentro del local el GPS agarra mal.' },
+      { t: 'Tómate la foto', d: 'Se abre la cámara de adelante. Esa foto queda guardada con tu marca.' },
+      { t: 'Al irte, marca tu salida', d: 'Mismo procedimiento. Arriba siempre ves a qué hora marcaste cada una.' },
+    ],
+    ojo: [
+      'Solo puedes marcar si estás en tu sede. Si estás más lejos de lo permitido, te dice a cuántos metros estás y no te deja.',
+      'Si tu celular no da la cámara o la ubicación, no puedes marcar: avísale a administración para que la registre a mano.',
+      'Solo se puede marcar una entrada y una salida por día. Si tocas dos veces, no se duplica.',
+      'Para administración: las marcas fuera del radio salen en rojo con los metros, y las registradas a mano salen señaladas con su motivo.',
+    ],
+    novedades: [
+      { f: '2026-07-24', d: 'Módulo nuevo: antes esta pantalla estaba vacía.' },
+    ],
+  },
+
+  // -------------------------------------------------------------------
   gastos: {
     titulo: 'Gastos',
     paraQuien: 'Fernanda (registra), Víctor y gerencia (registran y ven todo).',

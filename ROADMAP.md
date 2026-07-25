@@ -11,11 +11,14 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-_Nada pendiente de SQL._ El rediseño de compras está **completo y desplegado**
-(commits `aac42cb`, `8f3539b`, `fd44c41`, `f9506fc`). Toca que Juan lo use unos días.
-
-**Lo siguiente que pidió el usuario:** los módulos que faltan (ver "Otros pedidos" abajo:
-gastos en celular y asistencia con selfie + GPS).
+1. ⬜ **Correr `sql/32_asistencia.sql`** — coordenadas y radio por sede, tabla
+   `asistencia_marcas`, trigger que calcula la distancia EN LA BASE (para que el navegador
+   no pueda mandar metros inventados) y `vista_asistencia_dia`. **El frontend ya está en
+   código, sin desplegar.** ⚠️ Si se despliega antes, la pantalla de Asistencia sale sin
+   sedes: nombrar `lat/lng/radio_m` en un `.select()` revienta el query entero mientras las
+   columnas no existan (el gotcha de siempre). Después: `bash deploy.sh` + commit + push.
+2. ⬜ **Poner la ubicación de cada sede**: Sedes → 📍 Ubicación → "Usar mi ubicación actual",
+   parado DENTRO del local. Sin esto nadie puede marcar asistencia.
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -84,11 +87,23 @@ arregla en la fase 3.
   directa (`capture`), tipo y medio en pastillas, monto con teclado numérico, y fecha/sede/
   nota escondidas tras "+ cambiar" porque casi nunca se tocan. La tabla se desliza de lado
   en el celular con la clase `.tabla-movil` (reutilizable en otras pantallas).
-- **Asistencia**: hoy `Asistencia.jsx` es una **pantalla vacía** (placeholder, no hay nada).
-  Lo pedido: la persona llega, pone su PIN en su celular configurado y se toma una **selfie
-  con georreferencia** que registra su asistencia. Es un proyecto aparte; falta decidir si
-  se valida la ubicación contra la sede, con qué radio, y qué pasa si el GPS o la cámara
-  fallan.
+- 🔨 **Asistencia** — CONSTRUIDA, falta correr sql/32 + desplegar. Reglas que eligió el
+  usuario (**estrictas a propósito, no cambiar sin preguntar**): marca **entrada y salida**,
+  siempre con **selfie** · la ubicación **se valida y BLOQUEA** (fuera del radio no marca) ·
+  **sin cámara o sin GPS no se puede marcar**.
+  · Orden del flujo: **primero ubicación, después foto** — al revés sería hacerle tomar la
+    selfie para recién decirle que no puede marcar.
+  · **Válvula de escape** (la agregué yo, avisado): super/admin registran una marca a mano
+    con motivo obligatorio, y queda señalada. Sin eso, un celular viejo o un local sin señal
+    deja a alguien sin poder marcar un lunes a las 7am y el negocio se traba.
+  · La **distancia la calcula un trigger en la base**, no el navegador, así nadie manda
+    metros inventados. Pero ojo: las coordenadas sí las reporta el celular y un teléfono se
+    puede configurar para mentir — lo que de verdad disuade es la selfie con hora.
+  · Índice único `(perfil_id, fecha, tipo)`: tocar dos veces no duplica la marca.
+  · Ubicación de la sede en **Sedes → 📍 Ubicación**, con "usar mi ubicación actual" (parado
+    en el local; copiar coordenadas de un mapa a mano es donde se cometen los errores).
+    Tolerancia por defecto **120 m**: el GPS de un celular yerra de 10 a 50 m y peor en
+    interiores, así que un radio chico deja fuera a gente que sí está en la tienda.
 - **Gerencia ve las listas**: ✅ hecho (se agregó 'lista' a `ROLE_ACCESS.gerente`;
   `Lista.jsx` ya da el editor solo al rol cocina, al resto la vista de lectura).
 
@@ -108,7 +123,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→31. **Pendiente:** ninguno.
+**SQL corridos:** 01→31. **Pendiente:** sql/32.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 

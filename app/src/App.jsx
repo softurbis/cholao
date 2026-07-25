@@ -14,6 +14,7 @@ import Productos from './pages/Productos'
 import Gastos from './pages/Gastos'
 import Sedes from './pages/Sedes'
 import Personas from './pages/Personas'
+import Asistencia from './pages/Asistencia'
 
 function Privado({ module, children }) {
   return (
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/gastos" element={<Privado module="gastos"><Gastos /></Privado>} />
         <Route path="/sedes" element={<Privado module="sedes"><Sedes /></Privado>} />
         <Route path="/personas" element={<Privado module="personas"><Personas /></Privado>} />
+        <Route path="/asistencia" element={<Privado module="asistencia"><Asistencia /></Privado>} />
       </Routes>
     </AuthProvider>
   )

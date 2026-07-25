@@ -29,6 +29,7 @@ export default function Sedes() {
   const [form, setForm] = useState({ nombre: '', direccion: '', telefono: '' })
   const [guardando, setGuardando] = useState(false)
   const [abierta, setAbierta] = useState(null)   // sede cuyo horario se está viendo
+  const [ubicSede, setUbicSede] = useState(null) // sede cuya ubicación se está fijando
 
   async function cargar() {
     setCargando(true)
@@ -100,7 +101,7 @@ export default function Sedes() {
       {cargando ? <p className="nota">Cargando…</p> : (
         <table className="tabla">
           <thead>
-            <tr><th>Sede</th><th>Dirección</th><th>Teléfono</th><th>Turnos</th><th>Estado</th><th></th></tr>
+            <tr><th>Sede</th><th>Dirección</th><th>Teléfono</th><th>Turnos</th><th>Ubicación</th><th>Estado</th><th></th></tr>
           </thead>
           <tbody>
             {sedes.map((s) => {
@@ -116,6 +117,11 @@ export default function Sedes() {
                       : <span className="nota">sin turnos</span>}
                   </td>
                   <td>
+                    {s.lat != null && s.lng != null
+                      ? <span className="chip chip-ok">±{s.radio_m || 120} m</span>
+                      : <span className="chip chip-off">sin ubicar</span>}
+                  </td>
+                  <td>
                     <span className={`chip ${s.activo ? 'chip-ok' : 'chip-off'}`}>
                       {s.activo ? 'Activa' : 'Inactiva'}
                     </span>
@@ -124,6 +130,9 @@ export default function Sedes() {
                     <button className="btn-mini" onClick={() => setAbierta(abierta === s.id ? null : s.id)}>
                       {abierta === s.id ? 'Cerrar' : '🕒 Turnos y horario'}
                     </button>
+                    {puedeEditar && <button className="btn-mini" onClick={() => setUbicSede(ubicSede === s.id ? null : s.id)}>
+                      {ubicSede === s.id ? 'Cerrar' : '📍 Ubicación'}
+                    </button>}
                     {puedeEditar && <button className="btn-mini" onClick={() => toggleActivo(s)}>
                       {s.activo ? 'Desactivar' : 'Activar'}
                     </button>}
@@ -133,10 +142,14 @@ export default function Sedes() {
               )
             })}
             {sedes.length === 0 && (
-              <tr><td colSpan="6" className="nota">Sin sedes. Añade la primera arriba.</td></tr>
+              <tr><td colSpan="7" className="nota">Sin sedes. Añade la primera arriba.</td></tr>
             )}
           </tbody>
         </table>
+      )}
+
+      {ubicSede && (
+        <PanelUbicacion sede={sedes.find((s) => s.id === ubicSede)} onCambio={cargar} onError={setError} />
       )}
 
       {abierta && (
@@ -149,6 +162,72 @@ export default function Sedes() {
           onError={setError}
         />
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Dónde queda la sede, para validar las marcas de asistencia. Lo práctico es
+// pararse EN el local y tocar "Usar mi ubicación actual": buscar coordenadas en
+// un mapa y copiarlas a mano es donde se cometen los errores.
+function PanelUbicacion({ sede, onCambio, onError }) {
+  const [f, setF] = useState({
+    lat: sede?.lat ?? '', lng: sede?.lng ?? '', radio_m: sede?.radio_m ?? 120,
+  })
+  const [buscando, setBuscando] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function tomarUbicacion() {
+    setBuscando(true); setMsg('')
+    navigator.geolocation?.getCurrentPosition(
+      (p) => {
+        setF((x) => ({ ...x, lat: p.coords.latitude.toFixed(7), lng: p.coords.longitude.toFixed(7) }))
+        setMsg(`Ubicación tomada (precisión ±${Math.round(p.coords.accuracy)} m). Revisa que estés dentro del local.`)
+        setBuscando(false)
+      },
+      () => { setBuscando(false); setMsg('No se pudo obtener la ubicación. Da permiso en el navegador.') },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+    )
+    if (!navigator.geolocation) { setBuscando(false); setMsg('Este navegador no da ubicación.') }
+  }
+
+  async function guardar() {
+    if (f.lat === '' || f.lng === '') return setMsg('Falta la ubicación.')
+    const { error } = await supabase.from('sedes').update({
+      lat: Number(f.lat), lng: Number(f.lng), radio_m: Number(f.radio_m) || 120,
+    }).eq('id', sede.id)
+    if (error) return onError(error.message)
+    setMsg('Guardado.'); onCambio()
+  }
+
+  if (!sede) return null
+  return (
+    <div className="panel-detalle">
+      <h3>📍 Ubicación de {sede.nombre}</h3>
+      <p className="nota">
+        Se usa para validar la asistencia: quien marque a más metros de los que pongas aquí,
+        no puede registrar. Lo más seguro es tomarla parado dentro del local.
+      </p>
+      <div className="form-inline">
+        <button onClick={tomarUbicacion} disabled={buscando}>
+          {buscando ? 'Buscando…' : '📍 Usar mi ubicación actual'}
+        </button>
+      </div>
+      <div className="form-inline">
+        <label className="campo"><span>Latitud</span>
+          <input value={f.lat} onChange={(e) => setF({ ...f, lat: e.target.value })} placeholder="-8.3791" /></label>
+        <label className="campo"><span>Longitud</span>
+          <input value={f.lng} onChange={(e) => setF({ ...f, lng: e.target.value })} placeholder="-74.5539" /></label>
+        <label className="campo"><span>Tolerancia (metros)</span>
+          <input type="number" value={f.radio_m} onChange={(e) => setF({ ...f, radio_m: e.target.value })} /></label>
+        <button onClick={guardar}>Guardar ubicación</button>
+      </div>
+      {msg && <p className="nota">{msg}</p>}
+      <p className="nota">
+        Ojo: el GPS de un celular tiene error de 10 a 50 m, y dentro de un local puede ser peor.
+        Una tolerancia muy chica (menos de 80 m) va a hacer que gente que sí está en la tienda
+        no pueda marcar.
+      </p>
     </div>
   )
 }
