@@ -415,6 +415,82 @@ body {
 }
 .paso-voucher > .t-label, .consolidado .t-label { display: block; margin-bottom: 4px; }
 
+/* ---------- Compras de hoy (la pantalla de Juan, pensada para el dedo) ----------
+   Todo control que se toca mide 44px o más; el único campo con teclado es el precio. */
+.ch { max-width: 520px; margin: 0 auto; padding-bottom: 24px; }
+
+.ch-saldo {
+  display: flex; flex-direction: column; padding: 14px 16px; margin-bottom: 10px;
+  background: #fff; border: 1px solid var(--linea); border-radius: 12px;
+}
+.ch-saldo-lbl { font-size: 13px; color: var(--gris); }
+.ch-saldo-val { font-size: 30px; line-height: 1.15; }
+.ch-saldo-val.ch-neg { color: var(--rojo); }
+.ch-saldo-det { font-size: 12px; color: var(--gris); margin-top: 2px; }
+
+/* Comprobante activo: la foto se toma una vez por proveedor */
+.ch-comp {
+  display: flex; align-items: center; gap: 10px; width: 100%; margin-bottom: 12px;
+  padding: 12px 14px; border-radius: 12px; border: 1px solid var(--linea); background: #fff;
+  font-family: inherit; font-size: 15px; text-align: left; cursor: pointer;
+}
+.ch-comp-ok { border-color: #16a34a; background: #f0fdf4; }
+.ch-comp-vacio { border-style: dashed; border-color: var(--rojo); color: var(--rojo); justify-content: center; min-height: 52px; }
+.ch-comp-panel {
+  padding: 14px; margin-bottom: 12px; background: #fff;
+  border: 1px solid var(--linea); border-radius: 12px;
+}
+.ch-comp-panel input { width: 100%; height: 46px; font-size: 16px; }
+.ch-foto {
+  display: flex; align-items: center; justify-content: center; min-height: 52px; margin-bottom: 4px;
+  border: 1px dashed var(--linea); border-radius: 10px; background: #f9fafb;
+  font-size: 15px; cursor: pointer;
+}
+
+/* Cada producto pedido = una fila grande */
+.ch-fila { margin-bottom: 8px; background: #fff; border: 1px solid var(--linea); border-radius: 12px; overflow: hidden; }
+.ch-fila.ch-abierta { border-color: var(--rojo); }
+.ch-fila.ch-listo { background: #f0fdf4; border-color: #bbf7d0; }
+.ch-cab { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
+.ch-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ch-info strong { font-size: 16px; }
+.ch-sub { font-size: 13px; color: var(--gris); }
+.ch-sub.ch-ok { color: #15803d; }
+.ch-check { font-size: 22px; color: #16a34a; }
+.ch-btn-comprar {
+  height: 44px; padding: 0 18px; flex-shrink: 0; border-radius: 10px;
+  border: 1px solid var(--linea); background: #f4f4f5; font-family: inherit; font-size: 14px; cursor: pointer;
+}
+
+.ch-form { padding: 4px 14px 14px; border-top: 1px solid var(--linea); }
+.ch-stepper { display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; }
+.ch-cant { flex: 1; text-align: center; }
+.ch-cant input {
+  width: 100%; border: none; background: transparent; text-align: center;
+  font-family: inherit; font-size: 30px; font-weight: 700; color: var(--tinta); padding: 0;
+}
+.ch-cant input:focus { outline: none; }
+.ch-cant span { display: block; font-size: 12px; color: var(--gris); margin-top: -2px; }
+.ch-lbl { display: block; font-size: 12px; color: var(--gris); margin: 10px 0 4px; }
+.ch-precio { width: 100%; height: 48px; font-size: 19px; }
+.ch-pills { display: flex; gap: 6px; }
+.ch-pill {
+  flex: 1; height: 44px; border-radius: 10px; border: 1px solid var(--linea);
+  background: #f4f4f5; font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.ch-pill.act { background: var(--rojo); color: #fff; border-color: transparent; }
+.ch-guardar {
+  width: 100%; height: 52px; margin-top: 14px; border-radius: 12px; border: none;
+  background: var(--rojo); color: #fff; font-family: inherit; font-size: 16px; cursor: pointer;
+}
+.ch-guardar:disabled { opacity: .6; }
+.ch-sec {
+  width: 100%; height: 46px; margin-top: 8px; border-radius: 10px;
+  border: 1px solid var(--linea); background: #fff; font-family: inherit; font-size: 14px; cursor: pointer;
+}
+.ch-otro { margin-top: 12px; }
+.ch-otro select { width: 100%; height: 48px; font-size: 15px; }
+
 /* ---------- Móvil ---------- */
 @media (max-width: 760px) {
   .menu-btn { display: block; }

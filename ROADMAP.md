@@ -11,7 +11,56 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-_(sql/28 CORRIDO y DESPLEGADO el 17-jul-2026, commit `50eb37b`.)_
+1. ⬜ **Correr `sql/29_juan_lee_listas.sql`** — arregla un BUG SILENCIOSO: las policies
+   de sql/23 daban las listas de cocina a `mi_rol() in ('compras','almacen')`, pero Juan
+   es **cajera con `puede_compras`**, no rol 'compras' → **el consolidado le salía vacío**
+   (sin error). Probándolo como Cesar funcionaba, por eso no se vio. Ahora usa
+   `puede_compras_op()`. Después: `bash deploy.sh` + commit + push.
+
+_(sql/28 corrido y desplegado el 17-jul-2026, commit `50eb37b`.)_
+
+## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
+
+Se analizó el flujo y se encontró que **la misma cantidad se escribía 5 veces** en dos
+sistemas sin nexo (`compras` = dinero, `pedido_items`/`almacen_movimientos` = mercadería;
+la tabla `compras` no tiene FK a la lista ni al pedido). Decisión del usuario: simplificar
+a 4 pasos manteniendo el control, que es **de dinero** (los 3 riesgos son plata).
+
+**Fase 1 — HECHA, falta correr sql/29 + desplegar:** `components/ComprasHoy.jsx`, primera
+pestaña de Compras y vista por defecto. Pantalla única para celular:
+- Saldo del día EN VIVO arriba (vuelto + Amazonas + adicionales − compras − entregas).
+- **Comprobante activo**: la foto se toma UNA vez al llegar al proveedor (`capture` abre la
+  cámara) y se engancha a todo lo que registre ahí. Antes era una foto por producto.
+- Cada producto pedido = una fila; al abrirla: **+/− de 44px** (reusa `.li-btn` de la lista
+  de cocina), precio (único campo con teclado) y destino en **pastillas**, no desplegable.
+- Guardar = 1 toque: registra en `compras`, descuenta de su caja y define el destino.
+  **Almacén → ingreso al kardex. Sede → entrega directa, NO toca el stock central**
+  (descontarlo dejaba el almacén en negativo, porque esa mercadería nunca entró).
+- La lista es GUÍA: pidieron 10, compra 8, se guarda 8 y la diferencia queda sola.
+- Filtros y rankings se ocultan en esta vista (son de consulta, estorban al trabajar).
+
+**Fase 2 — pendiente:** panel de control de Cesar en soles (compras del día con/sin
+comprobante, caja de Juan, y las diferencias pedido vs comprado vs recibido).
+**Fase 3 — pendiente:** retirar `Pedidos`/`Entregas` y simplificar la recepción. Se dejan
+en pie a propósito hasta que Juan valide la pantalla nueva.
+
+⚠️ **Limitación conocida:** el consolidado **no se limpia solo** — las vistas filtran
+`compras_lista_items.comprado = false` y nada pone ese campo en true. Hoy solo desaparece
+si se marca la lista como *atendida* en Mi Lista. La pantalla nueva lo disimula (muestra
+"compró X · pidieron Y" y marca ✓), pero al día siguiente la lista vieja reaparece. Se
+arregla en la fase 3.
+
+## ⬜ Otros pedidos del usuario (24-jul-2026)
+- **Gastos en celular**: los paneles de gastos (Víctor/gerencia y Fernanda, que ingresa
+  bonos/adelantos/descuentos) deben ser fáciles en celular con subida de voucher directa
+  desde la cámara.
+- **Asistencia**: hoy `Asistencia.jsx` es una **pantalla vacía** (placeholder, no hay nada).
+  Lo pedido: la persona llega, pone su PIN en su celular configurado y se toma una **selfie
+  con georreferencia** que registra su asistencia. Es un proyecto aparte; falta decidir si
+  se valida la ubicación contra la sede, con qué radio, y qué pasa si el GPS o la cámara
+  fallan.
+- **Gerencia ve las listas**: ✅ hecho (se agregó 'lista' a `ROLE_ACCESS.gerente`;
+  `Lista.jsx` ya da el editor solo al rol cocina, al resto la vista de lectura).
 
 Verificar en producción cuando entre Juan/cocina:
 - **Cocina → Mi Lista**: arma lista (+/−, comentario, "Enviar a Juan" → bloquea) y abajo la
@@ -29,7 +78,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→28. **Pendiente:** ninguno.
+**SQL corridos:** 01→28. **Pendiente:** sql/29.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 

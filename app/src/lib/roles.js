@@ -38,9 +38,11 @@ export const MODULOS = [
 // Qué módulos ve cada rol. El orden importa: el primero es donde aterriza al
 // entrar (ver rutaInicial).
 export const ROLE_ACCESS = {
-  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'ventas', 'productos', 'config', 'sedes', 'personas'],
-  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'ventas', 'productos'],
-  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'ventas', 'productos'],
+  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'ventas', 'productos', 'config', 'sedes', 'personas'],
+  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'ventas', 'productos'],
+  // Gerencia entra a 'lista' SOLO para mirar lo que pidieron las sedes: Lista.jsx
+  // da el editor únicamente al rol 'cocina', al resto la vista de lectura.
+  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'ventas', 'productos'],
   compras:    ['compras'],
   cajera:     ['registro'],
   cocina:     ['lista'],

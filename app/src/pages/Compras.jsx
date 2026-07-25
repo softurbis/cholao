@@ -4,6 +4,7 @@ import { fetchAll } from '../lib/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { puedeCompras, puedeEditar } from '../lib/roles'
 import Recepcion from '../components/Recepcion'
+import ComprasHoy from '../components/ComprasHoy'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -93,7 +94,8 @@ export default function Compras() {
   const [fSede, setFSede] = useState('')
   const [fProv, setFProv] = useState('')
   const [busca, setBusca] = useState('')
-  const [vista, setVista] = useState('resumen')
+  // Arranca en "Comprar hoy": es la pantalla con la que se trabaja, el resto es consulta.
+  const [vista, setVista] = useState('hoy')
   const [edit, setEdit] = useState(null)          // {tabla, id} en edición
   const [borr, setBorr] = useState({})            // borrador de edición
   const [catProd, setCatProd] = useState([])      // catálogo de productos (compras_productos)
@@ -205,6 +207,8 @@ export default function Compras() {
 
       <datalist id="lista-productos">{productos.map((p) => <option key={p} value={p} />)}</datalist>
 
+      {/* Filtros y rankings son de consulta: estorban en la pantalla de trabajo. */}
+      {vista !== 'hoy' && (<>
       <div className="filtros">
         <label className="campo"><span>Desde</span><input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
         <label className="campo"><span>Hasta</span><input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
@@ -229,9 +233,10 @@ export default function Compras() {
         <div className="tarjeta"><span className="t-label">Proveedor top</span><span className="t-valor" style={{ fontSize: 15 }}>{rankProv[0]?.[0] || '—'}</span></div>
         <div className="tarjeta"><span className="t-label">Producto top</span><span className="t-valor" style={{ fontSize: 15 }}>{rankProd[0]?.[0] || '—'}</span></div>
       </div>
+      </>)}
 
       <div className="tab-bar">
-        {[['resumen', 'Rankings'], ['compras', 'Compras'], ['entregas', 'Entregas'], ['fondo', '💵 Caja de Juan'], ['pedidos', '📋 Pedidos'], ['recepcion', '📥 Recepción'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
+        {[['hoy', '🛒 Comprar hoy'], ['fondo', '💵 Caja de Juan'], ['recepcion', '📥 Recepción'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['entregas', 'Entregas'], ['pedidos', '📋 Pedidos'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -331,6 +336,9 @@ export default function Compras() {
       )}
       {vista === 'pedidos' && (
         <PedidosTab catalogo={catalogo} sedes={sedes} perfil={perfil} esAdmin={esAdmin} esCesar={esCesar} />
+      )}
+      {vista === 'hoy' && (
+        <ComprasHoy perfil={perfil} sedes={sedes} catalogo={catalogo} onCambio={cargarCompras} />
       )}
       {vista === 'recepcion' && (
         <RecepcionTab sedes={sedes} perfil={perfil} puedeRecibir={esAdmin} />
