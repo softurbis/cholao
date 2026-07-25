@@ -11,14 +11,12 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-1. ⬜ **Correr `sql/32_asistencia.sql`** — coordenadas y radio por sede, tabla
-   `asistencia_marcas`, trigger que calcula la distancia EN LA BASE (para que el navegador
-   no pueda mandar metros inventados) y `vista_asistencia_dia`. **El frontend ya está en
-   código, sin desplegar.** ⚠️ Si se despliega antes, la pantalla de Asistencia sale sin
-   sedes: nombrar `lat/lng/radio_m` en un `.select()` revienta el query entero mientras las
-   columnas no existan (el gotcha de siempre). Después: `bash deploy.sh` + commit + push.
-2. ⬜ **Poner la ubicación de cada sede**: Sedes → 📍 Ubicación → "Usar mi ubicación actual",
-   parado DENTRO del local. Sin esto nadie puede marcar asistencia.
+1. ⬜ **Poner la ubicación de cada sede** — Sedes → 📍 Ubicación → "Usar mi ubicación actual",
+   **parado DENTRO del local**. **Sin esto nadie puede marcar asistencia**: la pantalla avisa
+   "tu sede todavía no tiene su ubicación configurada". Es el único paso que falta para que
+   asistencia quede operativa.
+
+_Nada pendiente de SQL (01→32 corridos). Todo desplegado._
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -87,7 +85,8 @@ arregla en la fase 3.
   directa (`capture`), tipo y medio en pastillas, monto con teclado numérico, y fecha/sede/
   nota escondidas tras "+ cambiar" porque casi nunca se tocan. La tabla se desliza de lado
   en el celular con la clase `.tabla-movil` (reutilizable en otras pantallas).
-- 🔨 **Asistencia** — CONSTRUIDA, falta correr sql/32 + desplegar. Reglas que eligió el
+- ✅ **Asistencia** — HECHA y desplegada (commit `021676e`). Falta ponerle la ubicación a
+  cada sede. Reglas que eligió el
   usuario (**estrictas a propósito, no cambiar sin preguntar**): marca **entrada y salida**,
   siempre con **selfie** · la ubicación **se valida y BLOQUEA** (fuera del radio no marca) ·
   **sin cámara o sin GPS no se puede marcar**.
@@ -123,7 +122,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→31. **Pendiente:** sql/32.
+**SQL corridos:** 01→32. **Pendiente:** ninguno.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 
