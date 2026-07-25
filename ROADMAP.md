@@ -196,6 +196,25 @@ dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 
 ---
 
+## 📘 Manuales por módulo — REGLA AL TOCAR EL CÓDIGO
+
+Cada pantalla lleva su botón **❓ Manual** junto al título (`components/Manual.jsx`), y el
+contenido de los 11 módulos vive en **`app/src/manuales/index.js`**.
+
+**Si cambias cómo funciona un módulo, actualiza su manual EN EL MISMO CAMBIO** y agrega una
+línea a su `novedades` con la fecha. El manual vive junto al código a propósito: así se
+actualiza cuando se actualiza la pantalla, y no queda un instructivo suelto que nadie
+mantiene. Cada manual tiene: `paraQuien` · `resumen` · `pasos` (en el orden real de uso) ·
+`ojo` (lo que cuesta entender) · `novedades` (qué cambió y cuándo).
+
+## 🧭 Menú agrupado
+
+El panel izquierdo agrupa en **Día a día · Revisión · Ajustes** (`GRUPOS` en `lib/roles.js`),
+con desplegables; arranca abierto el grupo donde estás parado. Si a alguien le tocan **3
+módulos o menos** (la cajera ve uno) el menú va **plano**: agrupar tan poco estorba.
+Un módulo que no esté en ningún grupo cae en **"Otros"** en vez de desaparecer en silencio —
+si agregas un módulo nuevo, ponlo en su grupo.
+
 ## 🧰 Scripts útiles (`scripts/`, usan service_role)
 - `verificar_roles_v23.js` · `verificar_compras_v24.js` — prueban permisos entrando como
   cada rol (crean usuarios de prueba, entran con la anon key, comprueban y los borran).
