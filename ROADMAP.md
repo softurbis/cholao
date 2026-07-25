@@ -11,12 +11,18 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-1. ⬜ **Poner la ubicación de cada sede** — Sedes → 📍 Ubicación → "Usar mi ubicación actual",
+1. ⬜ **Correr `sql/33_consolidado_se_limpia.sql`** — arregla que el consolidado **no se
+   limpiaba solo**: las vistas filtran `compras_lista_items.comprado = false` y NADA ponía ese
+   campo en true (el `comprado = true` del código era sobre `pedido_items`, otra tabla). Lo que
+   una sede pedía el lunes le seguía saliendo a Juan el miércoles y terminaba comprando de más.
+   Ahora un ítem se marca atendido cuando **LLEGÓ** a la sede (comprado y no entregado sigue
+   siendo pendiente) y la lista se cierra sola cuando no le queda nada por llegar. Incluye el
+   arreglo de lo ya recibido antes del cambio. **El frontend no necesita cambios.**
+2. ⬜ **Poner la ubicación de cada sede** — Sedes → 📍 Ubicación → "Usar mi ubicación actual",
    **parado DENTRO del local**. **Sin esto nadie puede marcar asistencia**: la pantalla avisa
-   "tu sede todavía no tiene su ubicación configurada". Es el único paso que falta para que
-   asistencia quede operativa.
-
-_Nada pendiente de SQL (01→32 corridos). Todo desplegado._
+   "tu sede todavía no tiene su ubicación configurada".
+3. ⬜ **Horarios por persona y sede** — pedido del usuario: unos trabajan full y otros solo
+   tarde. Falta diseñarlo; se conecta con asistencia (permitiría detectar tardanzas).
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -122,7 +128,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→32. **Pendiente:** ninguno.
+**SQL corridos:** 01→32. **Pendiente:** sql/33.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 
