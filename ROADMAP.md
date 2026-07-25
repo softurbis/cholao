@@ -11,13 +11,14 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-1. ⬜ **Correr `sql/29_juan_lee_listas.sql`** — arregla un BUG SILENCIOSO: las policies
-   de sql/23 daban las listas de cocina a `mi_rol() in ('compras','almacen')`, pero Juan
-   es **cajera con `puede_compras`**, no rol 'compras' → **el consolidado le salía vacío**
-   (sin error). Probándolo como Cesar funcionaba, por eso no se vio. Ahora usa
-   `puede_compras_op()`. Después: `bash deploy.sh` + commit + push.
+1. ⬜ **Correr `sql/30_efectivo_contado.sql`** — agrega `fondo_compras_dia.efectivo_contado`.
+   POR QUÉ: el saldo que calcula el sistema (recibió − compras − entregas) **siempre cuadra**,
+   porque es aritmética sobre lo que el propio Juan registró. Si falta plata, el número no se
+   entera. El único control real es **contar el efectivo físico** y comparar. Después:
+   `bash deploy.sh` + commit + push.
 
-_(sql/28 corrido y desplegado el 17-jul-2026, commit `50eb37b`.)_
+_(sql/29 corrido; sql/28 desplegado el 17-jul, commit `50eb37b`; "Comprar hoy" desplegada
+el 24-jul, commit `aac42cb`.)_
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -39,8 +40,17 @@ pestaña de Compras y vista por defecto. Pantalla única para celular:
 - La lista es GUÍA: pidieron 10, compra 8, se guarda 8 y la diferencia queda sola.
 - Filtros y rankings se ocultan en esta vista (son de consulta, estorban al trabajar).
 
-**Fase 2 — pendiente:** panel de control de Cesar en soles (compras del día con/sin
-comprobante, caja de Juan, y las diferencias pedido vs comprado vs recibido).
+**Fase 2 — HECHA, falta correr sql/30 + desplegar:** `components/ControlCompras.jsx`,
+pestaña **🔎 Control** visible solo para Cesar/admin (`puedeEditar`). Revisión posterior,
+no bloquea. Responde 4 preguntas, todas en soles:
+1. **¿La plata cuadra?** — contra el **efectivo CONTADO** (sql/30), no contra la aritmética.
+   Falta / sobra / cuadra. "Sobra" suele ser una compra sin registrar.
+2. **¿Hay comprobantes?** — cuánto del día se gastó sin voucher, con el detalle.
+3. **¿Los precios son sanos?** — lo pagado hoy vs. el promedio de los 30 días previos;
+   marca lo que se sale del ±20%.
+4. **¿Se cubrió lo pedido?** — qué pidieron las sedes y no se compró.
+Más el detalle completo del día con sus vouchers. El conteo también se puede hacer desde
+💵 Caja de Juan al cerrar (que es cuando corresponde).
 **Fase 3 — pendiente:** retirar `Pedidos`/`Entregas` y simplificar la recepción. Se dejan
 en pie a propósito hasta que Juan valide la pantalla nueva.
 
@@ -78,7 +88,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→28. **Pendiente:** sql/29.
+**SQL corridos:** 01→29. **Pendiente:** sql/30.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { puedeCompras, puedeEditar } from '../lib/roles'
 import Recepcion from '../components/Recepcion'
 import ComprasHoy from '../components/ComprasHoy'
+import ControlCompras from '../components/ControlCompras'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -236,7 +237,10 @@ export default function Compras() {
       </>)}
 
       <div className="tab-bar">
-        {[['hoy', '🛒 Comprar hoy'], ['fondo', '💵 Caja de Juan'], ['recepcion', '📥 Recepción'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['entregas', 'Entregas'], ['pedidos', '📋 Pedidos'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
+        {[['hoy', '🛒 Comprar hoy'], ['fondo', '💵 Caja de Juan'],
+          // El panel de revisión es de Cesar/admin: Juan opera, no se audita solo.
+          ...(esCesar ? [['control', '🔎 Control']] : []),
+          ['recepcion', '📥 Recepción'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['entregas', 'Entregas'], ['pedidos', '📋 Pedidos'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['kardex', '🏬 Almacén / Kardex']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -339,6 +343,9 @@ export default function Compras() {
       )}
       {vista === 'hoy' && (
         <ComprasHoy perfil={perfil} sedes={sedes} catalogo={catalogo} onCambio={cargarCompras} />
+      )}
+      {vista === 'control' && esCesar && (
+        <ControlCompras sedes={sedes} catalogo={catalogo} />
       )}
       {vista === 'recepcion' && (
         <RecepcionTab sedes={sedes} perfil={perfil} puedeRecibir={esAdmin} />
@@ -538,6 +545,7 @@ function CajaJuanTab({ sedes, perfil, puedeOperar, historico }) {
   const [tarde, setTarde] = useState('')
   const [movs, setMovs] = useState([])             // fondo_movimientos del día
   const [comprasDia, setComprasDia] = useState(0)  // suma de compras del día
+  const [contado, setContado] = useState('')       // efectivo FÍSICO contado al cerrar
   const [cargando, setCargando] = useState(true)
   const [msg, setMsg] = useState('')
 
@@ -563,6 +571,7 @@ function CajaJuanTab({ sedes, perfil, puedeOperar, historico }) {
     setBase(row ? row.base_inicial : (cuadrePrev.data?.vuelto_saldo ?? ''))
     setManana(row ? row.efectivo_manana : (tMan ?? ''))
     setTarde(row ? row.efectivo_tarde : (tTar ?? ''))
+    setContado(row?.efectivo_contado != null ? String(row.efectivo_contado) : '')
     setCargando(false)
   }
   useEffect(() => { cargar() }, [fecha])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -578,7 +587,8 @@ function CajaJuanTab({ sedes, perfil, puedeOperar, historico }) {
     const { error } = await supabase.from('fondo_compras_dia').upsert({
       fecha, base_inicial: Number(base || 0), efectivo_manana: Number(manana || 0), efectivo_tarde: Number(tarde || 0),
       adicionales, dinero_total: disponible, gasto_total: comprasDia, entrega_admin: entregas,
-      vuelto_saldo: saldo, cerrado: !!cerrar, cerrado_por: cerrar ? (perfil?.id || null) : null,
+      vuelto_saldo: saldo, efectivo_contado: contado === '' ? null : Number(contado),
+      cerrado: !!cerrar, cerrado_por: cerrar ? (perfil?.id || null) : null,
     }, { onConflict: 'fecha' })
     if (error) return setMsg(error.message)
     setMsg(cerrar ? '✅ Día cerrado. El saldo es la base de mañana.' : '💾 Cuadre guardado.')
@@ -614,7 +624,21 @@ function CajaJuanTab({ sedes, perfil, puedeOperar, historico }) {
               <tr style={{ fontWeight: 700, borderTop: '2px solid var(--linea, #ccc)' }}><td>Dinero disponible</td><td style={{ textAlign: 'right' }}>{soles(disponible)}</td></tr>
               <tr><td>− Compras del día</td><td style={{ textAlign: 'right', color: 'var(--rojo)' }}>{soles(comprasDia)}</td></tr>
               <tr><td>− Entregas a gerencia <span className="nota">(sale de caja, no es gasto)</span></td><td style={{ textAlign: 'right', color: 'var(--rojo)' }}>{soles(entregas)}</td></tr>
-              <tr style={{ fontWeight: 700, borderTop: '2px solid var(--linea, #ccc)' }}><td>Vuelto / saldo de cierre</td><td style={{ textAlign: 'right', fontSize: 18 }}>{soles(saldo)}</td></tr>
+              <tr style={{ fontWeight: 700, borderTop: '2px solid var(--linea, #ccc)' }}><td>Debería quedarte</td><td style={{ textAlign: 'right', fontSize: 18 }}>{soles(saldo)}</td></tr>
+              {/* El saldo de arriba es aritmética: cuadra solo. El control real es contar. */}
+              <tr><td>Efectivo contado <span className="nota">(cuenta lo que te quedó)</span></td><td style={{ textAlign: 'right' }}>
+                {puedeOperar && !bloqueado
+                  ? <input type="number" step="0.01" className="in-num" value={contado} onChange={(e) => setContado(e.target.value)} placeholder={saldo.toFixed(2)} style={{ maxWidth: 120 }} />
+                  : (contado === '' ? '—' : soles(contado))}</td></tr>
+              {contado !== '' && (
+                <tr style={{ fontWeight: 700 }}><td>Diferencia</td><td style={{ textAlign: 'right' }}>
+                  {Number(contado) - saldo === 0
+                    ? <span className="chip chip-ok">Cuadra</span>
+                    : Number(contado) - saldo < 0
+                      ? <span className="chip" style={{ background: '#fee2e2', color: '#991b1b' }}>Falta {soles(saldo - Number(contado))}</span>
+                      : <span className="chip" style={{ background: '#fef9c3', color: '#854d0e' }}>Sobra {soles(Number(contado) - saldo)}</span>}
+                </td></tr>
+              )}
             </tbody>
           </table>
           {puedeOperar && (
