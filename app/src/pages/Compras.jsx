@@ -77,14 +77,13 @@ function SelectCat({ value, opciones, onChange, onCrear, placeholder }) {
 
 export default function Compras() {
   const { perfil } = useAuth()
-  // Editar compras/entregas y el catálogo: quien opera compras (Juan/admin/super).
+  // Registrar/editar compras y el catálogo: quien opera compras (Juan/admin/super).
   // Antes era `!perfil || rol===superadmin||gerente` → daba acceso sin perfil.
   const esAdmin = puedeCompras(perfil)
   // Cesar (super/admin): reconfirma pedidos e ingresa al almacén. Juan arma/envía.
   const esCesar = puedeEditar(perfil)
 
   const [compras, setCompras] = useState([])
-  const [entregas, setEntregas] = useState([])
   const [fondo, setFondo] = useState([])
   const [sedes, setSedes] = useState([])
   const [catalogo, setCatalogo] = useState([])       // tabla productos (con unidad)
@@ -126,13 +125,12 @@ export default function Compras() {
 
   useEffect(() => {
     (async () => {
-      const [c, e, f, { data: s }] = await Promise.all([
+      const [c, f, { data: s }] = await Promise.all([
         fetchAll('compras', 'id, fecha, nombre_libre, cantidad, unidad, precio_unitario, total, proveedor, destino_sede_id, comprobante, voucher_url'),
-        fetchAll('entregas', 'id, fecha, producto, cantidad, presentacion, sede_id, total'),
         fetchAll('fondo_compras_dia', '*'),
         supabase.from('sedes').select('id, nombre').order('nombre'),
       ])
-      setCompras(c); setEntregas(e); setFondo(f); setSedes(s || [])
+      setCompras(c); setFondo(f); setSedes(s || [])
       await cargarCatalogos()
       setCargando(false)
     })()
@@ -153,7 +151,7 @@ export default function Compras() {
 
   const sedeN = useMemo(() => Object.fromEntries(sedes.map((s) => [s.id, s.nombre])), [sedes])
   const provs = useMemo(() => [...new Set(compras.map((x) => x.proveedor))].filter(Boolean).sort(), [compras])
-  const productos = useMemo(() => [...new Set([...compras.map((x) => x.nombre_libre), ...entregas.map((x) => x.producto)])].filter(Boolean).sort(), [compras, entregas])
+  const productos = useMemo(() => [...new Set(compras.map((x) => x.nombre_libre))].filter(Boolean).sort(), [compras])
 
   const enRango = (fecha) => (!desde || fecha >= desde) && (!hasta || fecha <= hasta)
   const matchProd = (p) => !busca || (p || '').toLowerCase().includes(busca.toLowerCase())
@@ -172,30 +170,22 @@ export default function Compras() {
     return Object.entries(m).sort((a, b) => b[1] - a[1])
   }, [fil])
 
-  const entF = useMemo(() => entregas.filter((x) => enRango(x.fecha) && (!fSede || x.sede_id === fSede) && matchProd(x.producto)), [entregas, desde, hasta, fSede, busca])
-  const entPorSede = useMemo(() => {
-    const m = {}; for (const x of entF) { const k = sedeN[x.sede_id] || '—'; m[k] = (m[k] || 0) + Number(x.total || 0) }
-    return Object.entries(m).sort((a, b) => b[1] - a[1])
-  }, [entF, sedeN])
-
   const fondoF = useMemo(() => fondo.filter((x) => enRango(x.fecha) && (Number(x.gasto_total) || Number(x.dinero_total) || Number(x.efectivo_manana))), [fondo, desde, hasta])
   const fondoTot = fondoF.reduce((a, x) => ({
     rec: a.rec + Number(x.efectivo_manana || 0) + Number(x.efectivo_tarde || 0),
     gas: a.gas + Number(x.gasto_total || 0), adm: a.adm + Number(x.entrega_admin || 0),
   }), { rec: 0, gas: 0, adm: 0 })
 
+  // Corregir una compra ya registrada (producto, proveedor o destino).
   function iniciarEdit(tabla, row) {
     setEdit({ tabla, id: row.id })
-    setBorr(tabla === 'compras'
-      ? { nombre_libre: row.nombre_libre || '', proveedor: row.proveedor || '', destino_sede_id: row.destino_sede_id || '' }
-      : { producto: row.producto || '', sede_id: row.sede_id || '' })
+    setBorr({ nombre_libre: row.nombre_libre || '', proveedor: row.proveedor || '', destino_sede_id: row.destino_sede_id || '' })
   }
   async function guardar() {
     const campos = { ...borr }
-    for (const k of ['destino_sede_id', 'sede_id']) if (k in campos && !campos[k]) campos[k] = null
-    if (edit.tabla === 'compras') setCompras((p) => p.map((c) => c.id === edit.id ? { ...c, ...campos } : c))
-    else setEntregas((p) => p.map((c) => c.id === edit.id ? { ...c, ...campos } : c))
-    await supabase.from(edit.tabla).update(campos).eq('id', edit.id)
+    if ('destino_sede_id' in campos && !campos.destino_sede_id) campos.destino_sede_id = null
+    setCompras((p) => p.map((c) => c.id === edit.id ? { ...c, ...campos } : c))
+    await supabase.from('compras').update(campos).eq('id', edit.id)
     setEdit(null)
   }
 
@@ -206,7 +196,7 @@ export default function Compras() {
   return (
     <div className="pagina">
       <h1>Compras <span className="titulo-tag">Juan</span><Manual modulo="compras" /></h1>
-      <p className="pagina-sub">Compras diarias con efectivo de caja, entregas a sedes y cuadre del fondo.</p>
+      <p className="pagina-sub">Lo que piden las sedes, las compras del día, el almacén y la caja de Juan.</p>
 
       <datalist id="lista-productos">{productos.map((p) => <option key={p} value={p} />)}</datalist>
 
@@ -242,7 +232,7 @@ export default function Compras() {
         {[['hoy', '🛒 Comprar hoy'], ['fondo', '💵 Caja de Juan'],
           // El panel de revisión es de Cesar/admin: Juan opera, no se audita solo.
           ...(esCesar ? [['control', '🔎 Control']] : []),
-          ['pedidos', '📋 Pedidos a Cesar'], ['recepcion', '📥 Recepción'], ['conteo', '🔢 Conteo almacén'], ['kardex', '🏬 Almacén / Kardex'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['entregas', 'Entregas'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores']].map(([k, l]) => (
+          ['pedidos', '📋 Pedidos a Cesar'], ['recepcion', '📥 Recepción'], ['conteo', '🔢 Conteo almacén'], ['kardex', '🏬 Almacén / Kardex'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['entregas', 'Entregas (histórico)']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -296,41 +286,16 @@ export default function Compras() {
         {fil.length > 300 && <p className="nota">Mostrando 300 de {fil.length} — afina los filtros.</p>}
       </>)}
 
-      {vista === 'entregas' && (<>
-        <div className="tarjetas" style={{ marginBottom: 16 }}>
-          {entPorSede.map(([n, v]) => (<div className="tarjeta" key={n}><span className="t-label">Entregado a {n}</span><span className="t-valor" style={{ fontSize: 20 }}>{soles(v)}</span></div>))}
-        </div>
-        <table className="tabla">
-          <thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Sede</th><th>Total</th>{esAdmin && <th></th>}</tr></thead>
-          <tbody>
-            {entF.slice(0, 300).map((x) => enEdit('entregas', x.id) ? (
-              <tr key={x.id} className="fila-edit">
-                <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
-                <td><SelectCat value={borr.producto} opciones={catProd} placeholder="Producto…" onChange={(v) => setBorr({ ...borr, producto: v })} onCrear={() => crearEnCatalogo('productos', setCatProd)} /></td>
-                <td>{x.cantidad ?? '—'}</td>
-                <td><select value={borr.sede_id} onChange={(e) => setBorr({ ...borr, sede_id: e.target.value })}><option value="">—</option>{sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></td>
-                <td>{Number(x.total) ? soles(x.total) : <span className="nota">s/v</span>}</td>
-                <td className="acciones"><button className="btn-mini" onClick={guardar}>✓</button><button className="btn-mini" onClick={() => setEdit(null)}>✕</button></td>
-              </tr>
-            ) : (
-              <tr key={x.id}>
-                <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
-                <td><strong>{x.producto}</strong> <span className="nota">{x.presentacion || ''}</span></td>
-                <td>{x.cantidad ?? '—'}</td>
-                <td>{sedeN[x.sede_id] || '—'}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>{Number(x.total) ? soles(x.total) : <span className="nota">sin valorizar</span>}</td>
-                {esAdmin && <td><button className="btn-mini" title="Editar" onClick={() => iniciarEdit('entregas', x)}>✏️</button></td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {entF.length > 300 && <p className="nota">Mostrando 300 de {entF.length}.</p>}
-      </>)}
 
       {vista === 'fondo' && (
         <CajaJuanTab sedes={sedes} perfil={perfil} puedeOperar={esAdmin} historico={fondo} />
       )}
 
+      {/* Entregas: data VIEJA del Excel. La app nunca escribió en esta tabla, así que
+          no crece; se deja solo para consultar el histórico, sin poder editarla. */}
+      {vista === 'entregas' && (
+        <EntregasHistorico sedeN={sedeN} desde={desde} hasta={hasta} fSede={fSede} busca={busca} />
+      )}
       {vista === 'catalogo' && (
         <CatalogoTab catalogo={catalogo} puedeEditar={esAdmin} onCambio={cargarCatalogos} />
       )}
@@ -510,6 +475,64 @@ function FormCompra({ perfil, catalogo, sedes, catProv, onCrearProv, onListo }) 
           {ocupado ? 'Guardando…' : !paso1 ? 'Primero el comprobante o marca "en efectivo"' : !lineas.length ? 'Agrega los productos' : `Guardar compra (${soles(totalCompra)})`}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Entregas del Excel viejo. La app NUNCA escribió en esta tabla (era el reporte
+// que Juan llevaba a mano antes del sistema), así que no crece y no tiene sentido
+// poder editarla: queda como consulta del histórico. Se carga solo al abrir la
+// pestaña, para no pesarle a la pantalla de trabajo.
+function EntregasHistorico({ sedeN, desde, hasta, fSede, busca }) {
+  const [filas, setFilas] = useState(null)
+  useEffect(() => {
+    (async () => setFilas(await fetchAll('entregas', 'id, fecha, producto, cantidad, presentacion, sede_id, total')))()
+  }, [])
+
+  const fil = useMemo(() => (filas || []).filter((x) =>
+    (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta)
+    && (!fSede || x.sede_id === fSede)
+    && (!busca || (x.producto || '').toLowerCase().includes(busca.toLowerCase()))
+  ), [filas, desde, hasta, fSede, busca])
+
+  const porSede = useMemo(() => {
+    const m = {}; for (const x of fil) { const k = sedeN[x.sede_id] || '—'; m[k] = (m[k] || 0) + Number(x.total || 0) }
+    return Object.entries(m).sort((a, b) => b[1] - a[1])
+  }, [fil, sedeN])
+
+  if (filas === null) return <p className="nota">Cargando…</p>
+  return (
+    <div>
+      <p className="pagina-sub">
+        Entregas a las sedes del reporte que se llevaba antes del sistema. Es historia:
+        no se agregan nuevas y no se edita. Hoy lo que entrega Juan queda en sus compras
+        (con su destino) y en Recepción.
+      </p>
+      {porSede.length > 0 && (
+        <div className="tarjetas" style={{ marginBottom: 16 }}>
+          {porSede.map(([n, v]) => (
+            <div className="tarjeta" key={n}><span className="t-label">Entregado a {n}</span>
+              <span className="t-valor" style={{ fontSize: 20 }}>{soles(v)}</span></div>
+          ))}
+        </div>
+      )}
+      <table className="tabla tabla-movil">
+        <thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Sede</th><th>Total</th></tr></thead>
+        <tbody>
+          {fil.slice(0, 300).map((x) => (
+            <tr key={x.id}>
+              <td style={{ whiteSpace: 'nowrap' }}>{x.fecha}</td>
+              <td><strong>{x.producto}</strong> <span className="nota">{x.presentacion || ''}</span></td>
+              <td>{x.cantidad ?? '—'}</td>
+              <td>{sedeN[x.sede_id] || '—'}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{Number(x.total) ? soles(x.total) : <span className="nota">sin valorizar</span>}</td>
+            </tr>
+          ))}
+          {fil.length === 0 && <tr><td colSpan="5" className="nota">Sin entregas en ese rango.</td></tr>}
+        </tbody>
+      </table>
+      {fil.length > 300 && <p className="nota">Mostrando 300 de {fil.length}.</p>}
     </div>
   )
 }

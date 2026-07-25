@@ -93,8 +93,8 @@ export const MANUALES = {
     paraQuien: 'Fernanda (registra), Víctor y gerencia (registran y ven todo).',
     resumen: 'Gastos de la tienda y adelantos, descuentos y bonos del personal, cada uno con su comprobante.',
     pasos: [
-      { t: 'Primero la foto', d: 'Toca "Tomar foto del comprobante" y se abre la cámara directo. Si fue en efectivo y no hay papel, toca "Sin comprobante — en efectivo". Hasta que no resuelvas esto, lo demás no se habilita.' },
-      { t: '¿Qué es?', d: 'Toca una: gasto de tienda (agua, luz, alquiler) o algo de una persona: adelanto, descuento o bono.' },
+      { t: 'Primero: ¿qué es?', d: 'Toca una: gasto de tienda (agua, luz, alquiler) o algo de una persona: adelanto, descuento o bono.' },
+      { t: 'El comprobante, si corresponde', d: 'Solo el gasto de tienda y el adelanto lo piden, porque son los que mueven plata. Puedes tomar la foto ahí mismo o subir un archivo que ya tengas. Si fue en efectivo y no hay papel, toca "Sin comprobante — en efectivo".' },
       { t: '¿A quién o de qué?', d: 'Si es de una persona, la eliges de la lista. Si es gasto de tienda, escribes de qué se trata.' },
       { t: 'El monto', d: 'Escríbelo y guarda. El botón te muestra el monto antes de tocarlo.' },
       { t: 'Si hace falta cambiar algo más', d: 'La fecha, la sede o una nota están escondidas en "+ Cambiar fecha, sede o agregar nota", porque casi nunca se tocan.' },
@@ -106,7 +106,9 @@ export const MANUALES = {
       'La fecha se pone sola en el día de hoy. Si estás registrando algo de ayer, acuérdate de cambiarla.',
     ],
     novedades: [
-      { f: '2026-07-24', d: 'El formulario se rehizo para el celular: la cámara se abre directo y se elige tocando, casi sin teclado.' },
+      { f: '2026-07-24', d: 'El descuento y el bono ya no piden comprobante: son apuntes de planilla, no un pago.' },
+      { f: '2026-07-24', d: 'El comprobante ahora se puede subir como archivo, no solo tomar la foto.' },
+      { f: '2026-07-24', d: 'El formulario se rehizo para el celular: se elige tocando, casi sin teclado.' },
       { f: '2026-07-17', d: 'Se unificaron Gastos y Pagos en un solo módulo.' },
     ],
   },

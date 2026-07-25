@@ -9,11 +9,14 @@ import Manual from '../components/Manual'
 //   · Víctor (gerente), Cesar (super) y admin: ven TODO (lo nuevo + el histórico
 //     2026, mezclado por fecha) + el consolidado en PDF.
 //   · Fernanda (cajera con permiso): solo INGRESA y ve lo que ella registró.
+// `voucher`: si ese tipo mueve plata de verdad y por tanto puede tener comprobante.
+// Un descuento o un bono son apuntes de planilla, no un pago con voucher: pedirles
+// comprobante era un paso vacío que había que saltar todos los días.
 const TIPOS = [
-  { k: 'gasto', label: 'Gasto de tienda', persona: false },
-  { k: 'adelanto', label: 'Adelanto', persona: true },
-  { k: 'descuento', label: 'Descuento', persona: true },
-  { k: 'bono', label: 'Bono', persona: true },
+  { k: 'gasto', label: 'Gasto de tienda', persona: false, voucher: true },
+  { k: 'adelanto', label: 'Adelanto', persona: true, voucher: true },
+  { k: 'descuento', label: 'Descuento', persona: true, voucher: false },
+  { k: 'bono', label: 'Bono', persona: true, voucher: false },
 ]
 const TIPO_LABEL = Object.fromEntries(TIPOS.map((t) => [t.k, t.label]))
 const MEDIOS = ['yape', 'efectivo', 'transferencia', 'tarjeta', 'otro']
@@ -159,9 +162,11 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
   const [masDatos, setMasDatos] = useState(false)   // fecha/sede/nota: casi nunca se tocan
-  const pidePersona = TIPOS.find((t) => t.k === g.tipo)?.persona
-  // Paso 1 listo: hay voucher, o se marcó "en efectivo".
-  const paso1 = !!file || efectivo
+  const tipoDef = TIPOS.find((t) => t.k === g.tipo)
+  const pidePersona = tipoDef?.persona
+  const necesitaVoucher = !!tipoDef?.voucher
+  // Listo para los datos: el tipo no lleva comprobante, o ya hay foto, o se marcó efectivo.
+  const paso1 = !necesitaVoucher || !!file || efectivo
 
   async function guardar() {
     if (pidePersona && !g.persona_id) return setError('Elige a quién es el ' + g.tipo + '.')
@@ -183,7 +188,8 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
       persona_id: pidePersona ? g.persona_id : null,
       concepto: pidePersona ? null : g.concepto.trim().toUpperCase(),
       monto: Number(g.monto),
-      medio_pago: efectivo ? 'efectivo' : g.medio_pago,
+      // Un descuento o un bono no se "pagan": no llevan medio de pago.
+      medio_pago: !necesitaVoucher ? null : (efectivo ? 'efectivo' : g.medio_pago),
       sede_id: g.sede_id || null, nota: g.nota.trim() || null,
       voucher_url, registrado_por: perfil?.id || null,
     })
@@ -198,12 +204,24 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
       <h3>➕ Registrar gasto o pago</h3>
       {error && <div className="alerta">{error}</div>}
 
-      {/* PASO 1 — el comprobante va primero, siempre */}
-      {!paso1 ? (
+      {/* El tipo va PRIMERO: de él depende si hace falta comprobante o no. */}
+      <label className="ch-lbl">¿Qué es?</label>
+      <div className="ch-pills ch-pills-wrap">
+        {TIPOS.map((t) => (
+          <button type="button" key={t.k} className={g.tipo === t.k ? 'ch-pill act' : 'ch-pill'}
+            onClick={() => { setG({ ...g, tipo: t.k, persona_id: '', concepto: '' }); setFile(null); setEfectivo(false) }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* El comprobante solo para lo que mueve plata (gasto y adelanto). Un descuento
+          o un bono son apuntes de planilla: pedirles voucher era un paso vacío. */}
+      {necesitaVoucher && (!paso1 ? (
         <div className="paso-voucher">
           <label className="ch-foto">
-            📷 Tomar foto del comprobante
-            <input type="file" accept="image/*,application/pdf" capture="environment" style={{ display: 'none' }}
+            📎 Subir o tomar el comprobante
+            <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
               onChange={(e) => setFile(e.target.files?.[0] || null)} />
           </label>
           <button type="button" className="ch-sec" onClick={() => { setEfectivo(true); setFile(null) }}>
@@ -218,18 +236,9 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
           </div>
           <button type="button" className="ch-btn-comprar" onClick={() => { setFile(null); setEfectivo(false) }}>Cambiar</button>
         </div>
-      )}
+      ))}
 
-      {/* PASO 2 — los datos, recién cuando el comprobante está resuelto */}
       <div style={{ opacity: paso1 ? 1 : .45, pointerEvents: paso1 ? 'auto' : 'none' }}>
-        <label className="ch-lbl">¿Qué es?</label>
-        <div className="ch-pills ch-pills-wrap">
-          {TIPOS.map((t) => (
-            <button type="button" key={t.k} className={g.tipo === t.k ? 'ch-pill act' : 'ch-pill'}
-              onClick={() => setG({ ...g, tipo: t.k, persona_id: '', concepto: '' })}>{t.label}</button>
-          ))}
-        </div>
-
         {pidePersona ? (<>
           <label className="ch-lbl">¿A quién?</label>
           <select className="ch-select" value={g.persona_id} onChange={(e) => setG({ ...g, persona_id: e.target.value })}>
@@ -246,7 +255,7 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
         <input className="ch-precio" inputMode="decimal" placeholder="0.00"
           value={g.monto} onChange={(e) => setG({ ...g, monto: e.target.value })} />
 
-        {!efectivo && (<>
+        {necesitaVoucher && !efectivo && (<>
           <label className="ch-lbl">¿Cómo se pagó?</label>
           <div className="ch-pills ch-pills-wrap">
             {MEDIOS.map((m) => (
