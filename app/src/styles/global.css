@@ -565,6 +565,23 @@ body {
 }
 .ch-modo.act { background: var(--tinta); color: #fff; border-color: transparent; }
 
+/* ---------- Horarios: la semana en tarjetas por día ----------
+   Se apilan en el celular y se reparten en escritorio; una tabla de 7 columnas
+   con gente adentro no entra en un teléfono. */
+.hor-semana { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.hor-dia { background: #fff; border: 1px solid var(--linea); border-radius: 12px; padding: 10px 12px; }
+.hor-dia.hoy { border-color: var(--rojo); background: #fff7f7; }
+.hor-dia-cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.hor-turno {
+  display: flex; align-items: center; gap: 6px; padding: 6px 0;
+  border-top: 1px solid var(--linea); font-size: 14px;
+}
+.hor-nombre { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hor-horas { white-space: nowrap; font-size: 13px; }
+.hor-mas { width: 100%; margin-top: 8px; }
+.hor-alta { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--linea); }
+.hor-alta select { width: 100%; height: 40px; }
+
 /* ---------- Asistencia ---------- */
 .asis-hoy { display: flex; gap: 10px; margin-bottom: 14px; }
 .asis-marca {

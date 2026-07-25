@@ -8,7 +8,7 @@ import {
   sugerirUsuario, sugerirPin, ES_PIN,
 } from '../lib/adminUsuarios'
 
-const VACIO = { nombres: '', apellidos: '', dni: '', telefono: '', cargo: '', sede_id: '', sueldo_base: '' }
+const VACIO = { nombres: '', apellidos: '', dni: '', telefono: '', cargo: '', sede_id: '', sueldo_base: '', pago_hora: '' }
 const n = (v) => (v === '' || v == null ? null : Number(v))
 const sol = (v) => (v == null ? '—' : 'S/ ' + Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2 }))
 
@@ -72,7 +72,7 @@ export default function Personas() {
       telefono: form.telefono.trim() || null,
       cargo: form.cargo.trim().toUpperCase() || null,
       sede_id: form.sede_id || null,
-      sueldo_base: n(form.sueldo_base),
+      sueldo_base: n(form.sueldo_base), pago_hora: n(form.pago_hora),
     })
     setGuardando(false)
     if (error) aviso('err', error.message)
@@ -196,6 +196,9 @@ export default function Personas() {
         </select>
         <input placeholder="Sueldo" type="number" step="0.01" className="in-num" value={form.sueldo_base}
           onChange={(e) => setForm({ ...form, sueldo_base: e.target.value })} />
+        {/* Referencia para calcular horas extra. El pago se registra a mano en Gastos. */}
+        <input placeholder="Pago x hora" type="number" step="0.01" className="in-num" value={form.pago_hora}
+          onChange={(e) => setForm({ ...form, pago_hora: e.target.value })} />
         <button type="submit" disabled={guardando}>{guardando ? 'Guardando…' : '+ Añadir persona'}</button>
       </form>
 
@@ -219,7 +222,7 @@ export default function Personas() {
           <table className="tabla">
             <thead>
               <tr>
-                <th>Persona</th><th>DNI</th><th>Cargo</th><th>Sede</th><th>Sueldo</th>
+                <th>Persona</th><th>DNI</th><th>Cargo</th><th>Sede</th><th>Sueldo</th><th>Pago x hora</th>
                 <th>Acceso al sistema</th><th></th>
               </tr>
             </thead>
@@ -296,7 +299,7 @@ function FilaPersona({
 }) {
   const [ed, setEd] = useState({
     cargo: p.cargo || '', sede_id: p.sede_id || '', sueldo_base: p.sueldo_base ?? '',
-    telefono: p.telefono || '', dni: p.dni || '',
+    pago_hora: p.pago_hora ?? '', telefono: p.telefono || '', dni: p.dni || '',
   })
 
   if (editando) {
@@ -315,12 +318,16 @@ function FilaPersona({
           <input type="number" step="0.01" className="in-num" value={ed.sueldo_base}
             onChange={(e) => setEd({ ...ed, sueldo_base: e.target.value })} style={{ maxWidth: 90 }} />
         </td>
+        <td>
+          <input type="number" step="0.01" className="in-num" value={ed.pago_hora}
+            onChange={(e) => setEd({ ...ed, pago_hora: e.target.value })} style={{ maxWidth: 80 }} />
+        </td>
         <td><input value={ed.telefono} onChange={(e) => setEd({ ...ed, telefono: e.target.value })}
           placeholder="Teléfono" style={{ maxWidth: 110 }} /></td>
         <td className="acciones">
           <button className="btn-mini btn-ok" onClick={() => onGuardar({
             dni: ed.dni.trim() || null, cargo: ed.cargo.trim().toUpperCase() || null,
-            sede_id: ed.sede_id || null, sueldo_base: n(ed.sueldo_base),
+            sede_id: ed.sede_id || null, sueldo_base: n(ed.sueldo_base), pago_hora: n(ed.pago_hora),
             telefono: ed.telefono.trim() || null,
           })}>Guardar</button>
           <button className="btn-mini" onClick={onEditar}>Cancelar</button>
@@ -336,6 +343,7 @@ function FilaPersona({
       <td>{p.cargo || '—'}</td>
       <td>{nombreSede(p.sede_id)}</td>
       <td>{sol(p.sueldo_base)}</td>
+      <td>{p.pago_hora ? sol(p.pago_hora) : <span className="nota">—</span>}</td>
       <td>
         {pf ? (
           <>

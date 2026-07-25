@@ -21,8 +21,9 @@
 2. ⬜ **Poner la ubicación de cada sede** — Sedes → 📍 Ubicación → "Usar mi ubicación actual",
    **parado DENTRO del local**. **Sin esto nadie puede marcar asistencia**: la pantalla avisa
    "tu sede todavía no tiene su ubicación configurada".
-3. ⬜ **Horarios por persona y sede** — pedido del usuario: unos trabajan full y otros solo
-   tarde. Falta diseñarlo; se conecta con asistencia (permitiría detectar tardanzas).
+3. ⬜ **Correr `sql/34_horarios.sql`** — `personas.pago_hora`, tabla `horarios_programados`
+   y `vista_horarios` (con las horas ya calculadas, contemplando turnos que cruzan medianoche).
+   **El frontend ya está en código, sin desplegar.**
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -128,7 +129,19 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→32. **Pendiente:** sql/33.
+**SQL corridos:** 01→32. **Pendiente:** sql/33 y sql/34.
+
+### 📅 Horarios (nuevo, 25-jul-2026)
+Programación por **fecha** (una fila = persona + día + sede + horas), no plantilla semanal
+fija: los turnos **rotan** y con fechas la rotación sale sola. Para no re-teclear cada lunes
+hay **"copiar la semana anterior"** (no duplica lo que ya esté puesto).
+- **Mi horario**: cada quien ve su semana desde el celular (la policy `horarios_mio` filtra
+  por `perfiles.persona_id`, así que el navegador no manda el id de nadie).
+- **Programación**: por sede y semana, con atajos Full / Mañana / Tarde, y el resumen de
+  horas por persona × su `pago_hora`.
+- ⚠️ **Los bonos y horas extra se registran A MANO en Gastos** — decisión explícita del
+  usuario. Esto NO liquida nada ni se cruza con la asistencia; es programación y referencia.
+- `personas.pago_hora` se define en Personas.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 

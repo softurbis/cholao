@@ -66,6 +66,28 @@ export const MANUALES = {
   },
 
   // -------------------------------------------------------------------
+  horarios: {
+    titulo: 'Horarios',
+    paraQuien: 'Todos ven el suyo. Administración y gerencia programan.',
+    resumen: 'Quién trabaja cada día en cada sede, y cuántas horas le tocan.',
+    pasos: [
+      { t: 'Mi horario', d: 'Ves tu semana día por día: a qué hora entras, a qué hora sales y en qué sede. Abajo, el total de horas. Con las flechas te mueves de semana.' },
+      { t: 'Programar (administración)', d: 'Elige la sede y la semana. En cada día toca "+ Agregar", elige a la persona y su turno. Hay atajos: Full, Mañana y Tarde.' },
+      { t: 'Copiar la semana anterior', d: 'Trae toda la programación de la semana pasada de esa sede. Es lo que evita re-teclear todo cada lunes; después corriges solo lo que cambia.' },
+      { t: 'Ver las horas', d: 'Abajo sale cuántas horas le tocan a cada quien esa semana y a cuánto equivale según su pago por hora.' },
+    ],
+    ojo: [
+      'Los bonos y las horas extra NO se calculan aquí ni salen de la asistencia: se registran a mano en Gastos. Esto es solo la programación y la referencia de cuánto vale una hora.',
+      'El pago por hora de cada persona se pone en Personas.',
+      'Una persona puede tener dos bloques el mismo día (por ejemplo mañana y noche), pero no dos que empiecen a la misma hora.',
+      'Si no ves tu horario, puede ser que tu usuario no esté enlazado a tu ficha de personal: avísale al administrador.',
+    ],
+    novedades: [
+      { f: '2026-07-25', d: 'Módulo nuevo.' },
+    ],
+  },
+
+  // -------------------------------------------------------------------
   asistencia: {
     titulo: 'Asistencia',
     paraQuien: 'Todo el personal marca. Gerencia y administración revisan.',

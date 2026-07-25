@@ -33,6 +33,7 @@ export const MODULOS = [
   { key: 'sedes', to: '/sedes', label: 'Sedes', icon: '🏪' },
   { key: 'personas', to: '/personas', label: 'Personas', icon: '👥' },
   { key: 'asistencia', to: '/asistencia', label: 'Asistencia', icon: '🕒' },
+  { key: 'horarios', to: '/horarios', label: 'Horarios', icon: '📅' },
 ]
 
 // Cómo se agrupa el menú de la izquierda. La idea es que cada quien encuentre
@@ -41,7 +42,7 @@ export const MODULOS = [
 // Un grupo sin módulos visibles para ese rol no se pinta. Y si a alguien le tocan
 // pocos módulos (la cajera ve uno), el menú va plano: agrupar tres cosas estorba.
 export const GRUPOS = [
-  { key: 'dia', label: 'Día a día', icon: '🗓️', modulos: ['registro', 'lista', 'compras', 'gastos', 'asistencia'] },
+  { key: 'dia', label: 'Día a día', icon: '🗓️', modulos: ['registro', 'lista', 'compras', 'gastos', 'asistencia', 'horarios'] },
   { key: 'control', label: 'Revisión', icon: '📈', modulos: ['dashboard', 'cuadre', 'ventas', 'productos'] },
   { key: 'ajustes', label: 'Ajustes', icon: '🔧', modulos: ['sedes', 'personas', 'config'] },
 ]
@@ -49,19 +50,19 @@ export const GRUPOS = [
 // Qué módulos ve cada rol. El orden importa: el primero es donde aterriza al
 // entrar (ver rutaInicial).
 export const ROLE_ACCESS = {
-  // 'asistencia' la ve TODO EL MUNDO: cada quien marca la suya. Gerencia y
-  // administración además ven quién marcó, en la pestaña de control.
-  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'ventas', 'productos', 'config', 'sedes', 'personas'],
-  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'ventas', 'productos'],
+  // 'asistencia' y 'horarios' las ve TODO EL MUNDO: cada quien marca la suya y ve
+  // su horario. Gerencia y administración además ven quién marcó y programan.
+  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos', 'config', 'sedes', 'personas'],
+  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos'],
   // Gerencia entra a 'lista' SOLO para mirar lo que pidieron las sedes: Lista.jsx
   // da el editor únicamente al rol 'cocina', al resto la vista de lectura.
-  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'ventas', 'productos'],
-  compras:    ['compras', 'asistencia'],
-  cajera:     ['registro', 'asistencia'],
-  cocina:     ['lista', 'asistencia'],
+  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos'],
+  compras:    ['compras', 'asistencia', 'horarios'],
+  cajera:     ['registro', 'asistencia', 'horarios'],
+  cocina:     ['lista', 'asistencia', 'horarios'],
   // históricos
-  encargado:  ['dashboard', 'registro', 'cuadre', 'asistencia'],
-  almacen:    ['compras', 'asistencia'],
+  encargado:  ['dashboard', 'registro', 'cuadre', 'asistencia', 'horarios'],
+  almacen:    ['compras', 'asistencia', 'horarios'],
 }
 
 // Sin rol no se accede a nada. El `|| []` es el fail-closed: un rol no mapeado
