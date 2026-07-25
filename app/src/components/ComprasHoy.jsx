@@ -29,6 +29,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
   const [compras, setCompras] = useState([])        // compras de HOY
   const [caja, setCaja] = useState({ base: 0, manana: 0, tarde: 0, adic: 0, entregas: 0 })
   const [proveedores, setProveedores] = useState([])
+  const [refPrecios, setRefPrecios] = useState({})   // precio promedio de los últimos 30 días
 
   // Comprobante ACTIVO: se define al llegar al proveedor y vale para todo lo que
   // registre ahí. {proveedor, voucher_url, comprobante, efectivo}
@@ -47,7 +48,8 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
   async function cargar() {
     setCargando(true)
     const ayer = diaAnterior(hoy)
-    const [cs, cp, dia, prev, movs, turnos, prov] = await Promise.all([
+    const hace30 = new Date(hoy + 'T12:00:00'); hace30.setDate(hace30.getDate() - 30)
+    const [cs, cp, dia, prev, movs, turnos, prov, hist] = await Promise.all([
       supabase.from('vista_consolidado_sede').select('*'),
       supabase.from('compras').select('*').eq('fecha', hoy),
       supabase.from('fondo_compras_dia').select('*').eq('fecha', hoy).maybeSingle(),
@@ -55,7 +57,17 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
       supabase.from('fondo_movimientos').select('tipo, monto').eq('fecha', hoy),
       amazonas ? supabase.from('caja_turno').select('turno, efectivo').eq('sede_id', amazonas.id).eq('fecha', ayer) : Promise.resolve({ data: [] }),
       supabase.from('proveedores').select('nombre').order('nombre'),
+      supabase.from('compras').select('producto_id, precio_unitario').gte('fecha', fmt(hace30)).lt('fecha', hoy),
     ])
+    // Precio de referencia por producto: para avisarle si se le fue un dedo (35 en vez
+    // de 3.50) o si el mercado se movió de verdad. Es un aviso, nunca bloquea.
+    const ref = {}
+    for (const h of (hist.data || [])) {
+      if (!h.producto_id || !num(h.precio_unitario)) continue
+      ref[h.producto_id] = ref[h.producto_id] || { s: 0, n: 0 }
+      ref[h.producto_id].s += num(h.precio_unitario); ref[h.producto_id].n++
+    }
+    setRefPrecios(Object.fromEntries(Object.entries(ref).map(([k, v]) => [k, v.s / v.n])))
     const row = dia.data
     const tMan = (turnos.data || []).find((t) => t.turno === 'manana')?.efectivo
     const tTar = (turnos.data || []).find((t) => t.turno === 'tarde')?.efectivo
@@ -229,6 +241,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
                 <label className="ch-lbl">Precio por {p.unidad}</label>
                 <input className="ch-precio" inputMode="decimal" placeholder="0.00"
                   value={bor.precio} onChange={(e) => setBor({ ...bor, precio: e.target.value })} />
+                <AvisoPrecio promedio={refPrecios[p.clave]} precio={bor.precio} unidad={p.unidad} />
 
                 <label className="ch-lbl">Va a</label>
                 <div className="ch-pills">
@@ -275,6 +288,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
             <label className="ch-lbl">Precio por {prodN[otro]?.unidad}</label>
             <input className="ch-precio" inputMode="decimal" placeholder="0.00"
               value={bor.precio} onChange={(e) => setBor({ ...bor, precio: e.target.value })} />
+            <AvisoPrecio promedio={refPrecios[otro]} precio={bor.precio} unidad={prodN[otro]?.unidad} />
             <label className="ch-lbl">Va a</label>
             <div className="ch-pills">
               {sedes.map((s) => (
@@ -292,6 +306,26 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Aviso cuando el precio se sale de lo que se venía pagando. NO bloquea: el precio
+// lo pone Juan según lo que compró y él manda. Sirve para dos cosas: pescar el dedo
+// de más (35 en vez de 3.50, que le descuadra la caja y nadie lo nota hasta fin de
+// mes) y enterarse de que el mercado se movió.
+// OJO: la prop NO puede llamarse `ref` — React la trata distinto y no llegaría.
+function AvisoPrecio({ promedio, precio, unidad }) {
+  const p = num(precio)
+  if (!promedio || !p) return null
+  const v = (p - promedio) / promedio
+  if (Math.abs(v) < 0.2) return null
+  const alto = v > 0
+  return (
+    <p className={alto ? 'ch-aviso ch-aviso-alto' : 'ch-aviso'}>
+      {alto ? '▲' : '▼'} Venías pagando {soles(promedio)} por {unidad} — esto es{' '}
+      {Math.abs(Math.round(v * 100))}% {alto ? 'más caro' : 'más barato'}. ¿Está bien?
+    </p>
   )
 }
 

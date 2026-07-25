@@ -23,7 +23,7 @@ export default function ControlCompras({ sedes, catalogo }) {
   const [movs, setMovs] = useState([])
   const [turnos, setTurnos] = useState([])
   const [prevSaldo, setPrevSaldo] = useState(0)
-  const [consol, setConsol] = useState([])
+  const [itemsLista, setItemsLista] = useState([])   // items de las listas ENVIADAS (traen cantidad_recibida)
   const [contado, setContado] = useState('')
   const [cargando, setCargando] = useState(true)
   const [msg, setMsg] = useState('')
@@ -36,17 +36,22 @@ export default function ControlCompras({ sedes, catalogo }) {
     setCargando(true); setMsg('')
     const ayer = diaAnterior(fecha)
     const desde = new Date(fecha + 'T12:00:00'); desde.setDate(desde.getDate() - 30)
-    const [cp, hi, dia, prev, mv, tu, cs] = await Promise.all([
+    const [cp, hi, dia, prev, mv, tu] = await Promise.all([
       supabase.from('compras').select('*').eq('fecha', fecha),
       supabase.from('compras').select('producto_id, precio_unitario, fecha').gte('fecha', fmt(desde)).lt('fecha', fecha),
       supabase.from('fondo_compras_dia').select('*').eq('fecha', fecha).maybeSingle(),
       supabase.from('fondo_compras_dia').select('vuelto_saldo').lt('fecha', fecha).order('fecha', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('fondo_movimientos').select('*').eq('fecha', fecha),
       amazonas ? supabase.from('caja_turno').select('turno, efectivo').eq('sede_id', amazonas.id).eq('fecha', ayer) : Promise.resolve({ data: [] }),
-      supabase.from('vista_consolidado_sede').select('*'),
     ])
+    // Los items de las listas enviadas: de ahí sale la cadena pidieron → compró → llegó.
+    // Se leen directo (no de la vista) porque solo la tabla trae `cantidad_recibida`.
+    const { data: ls } = await supabase.from('compras_listas').select('id').eq('estado', 'enviada')
+    const ids = (ls || []).map((x) => x.id)
+    const its = ids.length ? (await supabase.from('compras_lista_items').select('*').in('lista_id', ids)).data : []
+    setItemsLista(its || [])
     setCompras(cp.data || []); setHistorico(hi.data || []); setCuadre(dia.data)
-    setMovs(mv.data || []); setTurnos(tu.data || []); setConsol(cs.data || [])
+    setMovs(mv.data || []); setTurnos(tu.data || [])
     setPrevSaldo(num(prev.data?.vuelto_saldo))
     setContado(dia.data?.efectivo_contado != null ? String(dia.data.efectivo_contado) : '')
     setCargando(false)
@@ -89,17 +94,22 @@ export default function ControlCompras({ sedes, catalogo }) {
     return out.sort((a, b) => Math.abs(b.var_) - Math.abs(a.var_))
   }, [compras, historico])
 
-  // --- 4. Cobertura: lo que pidieron y no se compró ---------------------
-  const faltantes = useMemo(() => {
-    const ped = {}
-    for (const c of consol) {
-      if (String(c.clave).startsWith('libre:')) continue
-      ped[c.clave] = ped[c.clave] || { producto: c.producto, unidad: c.unidad, pedido: 0 }
-      ped[c.clave].pedido += num(c.cantidad)
+  // --- 4. La cadena completa: pidieron → compró → llegó ------------------
+  const cobertura = useMemo(() => {
+    const m = {}
+    for (const it of itemsLista) {
+      if (!it.producto_id) continue
+      m[it.producto_id] = m[it.producto_id] || {
+        producto: prodN[it.producto_id]?.nombre || it.nombre_libre || '—',
+        unidad: it.unidad || prodN[it.producto_id]?.unidad || '', pedido: 0, recibido: 0, comprado: 0,
+      }
+      m[it.producto_id].pedido += num(it.cantidad)
+      m[it.producto_id].recibido += num(it.cantidad_recibida)
     }
-    for (const c of compras) if (c.producto_id && ped[c.producto_id]) ped[c.producto_id].comprado = (ped[c.producto_id].comprado || 0) + num(c.cantidad)
-    return Object.values(ped).filter((p) => (p.comprado || 0) < p.pedido)
-  }, [consol, compras])
+    for (const c of compras) if (c.producto_id && m[c.producto_id]) m[c.producto_id].comprado += num(c.cantidad)
+    return Object.values(m).sort((a, b) => a.producto.localeCompare(b.producto))
+  }, [itemsLista, compras, prodN])
+  const conFalta = cobertura.filter((p) => p.comprado < p.pedido).length
 
   async function guardarConteo() {
     if (!hayConteo) return setMsg('Escribe cuánto efectivo se contó.')
@@ -194,21 +204,27 @@ export default function ControlCompras({ sedes, catalogo }) {
       </div>
 
       <div className="panel-detalle">
-        <h3>Pidieron y no se compró</h3>
-        {faltantes.length === 0
-          ? <p className="nota">Se cubrió todo lo que las sedes pidieron.</p>
+        <h3>Pidieron → compró → llegó {conFalta > 0 && <span className="nota">{conFalta} sin cubrir</span>}</h3>
+        {cobertura.length === 0
+          ? <p className="nota">Ninguna sede tiene listas enviadas pendientes.</p>
           : (
             <table className="tabla">
-              <thead><tr><th>Producto</th><th>Pidieron</th><th>Compró</th><th>Falta</th></tr></thead>
+              <thead><tr><th>Producto</th><th>Pidieron</th><th>Compró</th><th>Llegó</th><th>Falta</th></tr></thead>
               <tbody>
-                {faltantes.map((p) => (
-                  <tr key={p.producto}>
-                    <td><strong>{p.producto}</strong></td>
-                    <td>{p.pedido} {p.unidad}</td>
-                    <td>{p.comprado || 0}</td>
-                    <td style={{ fontWeight: 700 }}>{(p.pedido - (p.comprado || 0)).toLocaleString('es-PE')} {p.unidad}</td>
-                  </tr>
-                ))}
+                {cobertura.map((p) => {
+                  const falta = p.pedido - p.comprado
+                  return (
+                    <tr key={p.producto} className={falta <= 0 ? 'fila-inactiva' : ''}>
+                      <td><strong>{p.producto}</strong> <span className="nota">{p.unidad}</span></td>
+                      <td>{p.pedido.toLocaleString('es-PE')}</td>
+                      <td>{p.comprado.toLocaleString('es-PE')}</td>
+                      <td>{p.recibido.toLocaleString('es-PE')}</td>
+                      <td style={{ fontWeight: 700, color: falta > 0 ? 'var(--rojo)' : undefined }}>
+                        {falta > 0 ? falta.toLocaleString('es-PE') : '✓'}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}

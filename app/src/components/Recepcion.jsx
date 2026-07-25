@@ -13,6 +13,7 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
   const [items, setItems] = useState([])
   const [productos, setProductos] = useState([])
   const [movs, setMovs] = useState([])
+  const [comprado, setComprado] = useState({})   // {producto_id: cantidad comprada para esta sede}
   const [cargando, setCargando] = useState(true)
   const [recibir, setRecibir] = useState({})   // {itemId: cantidad a recibir ahora}
   const [emerg, setEmerg] = useState({ producto_id: '', cantidad: '' })
@@ -24,12 +25,18 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
     const { data: listas } = await supabase.from('compras_listas').select('*')
       .eq('sede_id', sedeId).in('estado', ['enviada', 'atendida']).order('fecha', { ascending: false }).limit(1)
     const l = (listas || [])[0] || null
-    const [{ data: it }, { data: pr }, { data: mv }] = await Promise.all([
+    const [{ data: it }, { data: pr }, { data: mv }, { data: cp }] = await Promise.all([
       l ? supabase.from('compras_lista_items').select('*').eq('lista_id', l.id).order('id') : Promise.resolve({ data: [] }),
       supabase.from('productos').select('id, nombre, unidad').eq('activo', true).order('nombre'),
       supabase.from('almacen_movimientos').select('*').eq('sede_id', sedeId).eq('tipo', 'salida').order('fecha', { ascending: false }).limit(50),
+      // Lo que Juan compró PARA esta sede desde que se envió la lista: así se ve la
+      // cadena completa (pidieron → compró → llegó) sin salir de esta pantalla.
+      l ? supabase.from('compras').select('producto_id, cantidad').eq('destino_sede_id', sedeId).gte('fecha', l.fecha) : Promise.resolve({ data: [] }),
     ])
     setLista(l); setItems(it || []); setProductos(pr || []); setMovs(mv || [])
+    const m = {}
+    for (const c of (cp || [])) if (c.producto_id) m[c.producto_id] = (m[c.producto_id] || 0) + Number(c.cantidad || 0)
+    setComprado(m)
     setCargando(false)
   }
   useEffect(() => { cargar() }, [sedeId])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,7 +81,7 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
       {msg && <div className="alerta">{msg}</div>}
       {!lista ? <p className="nota">Esta sede no tiene una lista enviada por recibir.</p> : (<>
         <table className="tabla">
-          <thead><tr><th>Producto</th><th>Pedido</th><th>Recibido</th>{puedeRecibir && <th>Recibir ahora</th>}</tr></thead>
+          <thead><tr><th>Producto</th><th>Pidieron</th><th>Compró</th><th>Llegó</th>{puedeRecibir && <th>Recibir ahora</th>}</tr></thead>
           <tbody>
             {items.map((it) => {
               const ped = Number(it.cantidad || 0), rec = Number(it.cantidad_recibida || 0)
@@ -83,6 +90,7 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
                 <tr key={it.id} className={completo ? 'fila-inactiva' : ''}>
                   <td><strong>{prodN[it.producto_id]?.nombre || it.nombre_libre || '—'}</strong> <span className="nota">{it.unidad || ''}</span></td>
                   <td>{ped.toLocaleString('es-PE')}</td>
+                  <td className="nota">{comprado[it.producto_id] ? Number(comprado[it.producto_id]).toLocaleString('es-PE') : '—'}</td>
                   <td>{rec.toLocaleString('es-PE')} {completo && <span className="chip chip-ok" style={{ marginLeft: 4 }}>completo</span>}</td>
                   {puedeRecibir && <td>{completo ? '—' : (
                     <span className="form-inline" style={{ gap: 4 }}>
@@ -93,7 +101,7 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
                 </tr>
               )
             })}
-            {items.length === 0 && <tr><td colSpan={puedeRecibir ? 4 : 3} className="nota">La lista no tiene productos.</td></tr>}
+            {items.length === 0 && <tr><td colSpan={puedeRecibir ? 5 : 4} className="nota">La lista no tiene productos.</td></tr>}
           </tbody>
         </table>
         {pendientes.length === 0 && items.length > 0 && <p className="aviso-ok">✅ Todo lo de la lista fue recibido.</p>}

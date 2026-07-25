@@ -488,6 +488,12 @@ body {
   width: 100%; height: 46px; margin-top: 8px; border-radius: 10px;
   border: 1px solid var(--linea); background: #fff; font-family: inherit; font-size: 14px; cursor: pointer;
 }
+/* Aviso de precio raro: informa, no bloquea */
+.ch-aviso {
+  margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 13px;
+  background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;
+}
+.ch-aviso.ch-aviso-alto { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
 .ch-otro { margin-top: 12px; }
 .ch-otro select { width: 100%; height: 48px; font-size: 15px; }
 
