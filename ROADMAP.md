@@ -11,12 +11,11 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-1. ⬜ **Correr `sql/31_conteo_almacen.sql`** — tabla `almacen_conteos` + `vista_ultimo_conteo`.
-   Mismo principio que el efectivo contado: el stock del sistema siempre cuadra consigo mismo;
-   si algo se perdió o salió sin anotarse, solo se sabe **contando**. Después: `bash deploy.sh`
-   + commit + push. **El frontend que lo usa ya está en código, sin desplegar.**
+_Nada pendiente de SQL._ El rediseño de compras está **completo y desplegado**
+(commits `aac42cb`, `8f3539b`, `fd44c41`, `f9506fc`). Toca que Juan lo use unos días.
 
-_(Fases 1 y 2 desplegadas: commits `aac42cb`, `8f3539b`, `fd44c41`.)_
+**Lo siguiente que pidió el usuario:** los módulos que faltan (ver "Otros pedidos" abajo:
+gastos en celular y asistencia con selfie + GPS).
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -108,7 +107,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→30. **Pendiente:** sql/31.
+**SQL corridos:** 01→31. **Pendiente:** ninguno.
 **Edge Function `admin-usuarios`:** desplegada con slug **`quick-api`** (así se creó en el
 dashboard). `app/src/lib/adminUsuarios.js` apunta a `quick-api`.
 
