@@ -80,9 +80,10 @@ si se marca la lista como *atendida* en Mi Lista. La pantalla nueva lo disimula 
 arregla en la fase 3.
 
 ## ⬜ Otros pedidos del usuario (24-jul-2026)
-- **Gastos en celular**: los paneles de gastos (Víctor/gerencia y Fernanda, que ingresa
-  bonos/adelantos/descuentos) deben ser fáciles en celular con subida de voucher directa
-  desde la cámara.
+- ✅ **Gastos en celular** — HECHO (commit `9160cef`). Mismo patrón que compras: cámara
+  directa (`capture`), tipo y medio en pastillas, monto con teclado numérico, y fecha/sede/
+  nota escondidas tras "+ cambiar" porque casi nunca se tocan. La tabla se desliza de lado
+  en el celular con la clase `.tabla-movil` (reutilizable en otras pantallas).
 - **Asistencia**: hoy `Asistencia.jsx` es una **pantalla vacía** (placeholder, no hay nada).
   Lo pedido: la persona llega, pone su PIN en su celular configurado y se toma una **selfie
   con georreferencia** que registra su asistencia. Es un proyecto aparte; falta decidir si
