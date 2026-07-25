@@ -521,6 +521,11 @@ body {
 .ch-lbl { display: block; font-size: 12px; color: var(--gris); margin: 10px 0 4px; }
 .ch-precio { width: 100%; height: 48px; font-size: 19px; }
 .ch-pills { display: flex; gap: 6px; }
+/* Cuando son 4 o 5 opciones (tipos de gasto, medios de pago) no entran en una
+   línea del celular: se parten y cada pastilla mantiene su tamaño para el dedo. */
+.ch-pills-wrap { flex-wrap: wrap; }
+.ch-pills-wrap .ch-pill { flex: 1 1 30%; min-width: 92px; }
+.ch-select { width: 100%; height: 46px; font-size: 16px; }
 .ch-pill {
   flex: 1; height: 44px; border-radius: 10px; border: 1px solid var(--linea);
   background: #f4f4f5; font-family: inherit; font-size: 13px; cursor: pointer;
@@ -566,4 +571,10 @@ body {
   }
   .sidebar.abierto { transform: translateX(0); }
   .contenido { padding: 64px 18px 24px; }
+  /* Tablas anchas en el celular: se deslizan de lado en vez de romper la pantalla.
+     Va por clase y no sobre `.tabla` para no alterar todas las pantallas de golpe. */
+  .tabla-movil { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tabla-movil th, .tabla-movil td { white-space: nowrap; }
+  /* El formulario móvil ocupa todo el ancho disponible */
+  .panel-detalle.ch { padding: 12px; }
 }

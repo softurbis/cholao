@@ -71,16 +71,20 @@ export const MANUALES = {
     paraQuien: 'Fernanda (registra), Víctor y gerencia (registran y ven todo).',
     resumen: 'Gastos de la tienda y adelantos, descuentos y bonos del personal, cada uno con su comprobante.',
     pasos: [
-      { t: 'Primero el comprobante', d: 'El formulario va al revés a propósito: sube la foto del voucher antes que nada, o marca "sin comprobante — en efectivo". Recién ahí se habilitan los datos.' },
-      { t: 'Elige el tipo', d: 'Gasto de tienda (agua, luz, alquiler) o algo de una persona: adelanto, descuento o bono.' },
-      { t: 'Completa y guarda', d: 'Si es de una persona, la eliges de la lista. Si es gasto de tienda, escribes el concepto. Pon el monto y guarda.' },
+      { t: 'Primero la foto', d: 'Toca "Tomar foto del comprobante" y se abre la cámara directo. Si fue en efectivo y no hay papel, toca "Sin comprobante — en efectivo". Hasta que no resuelvas esto, lo demás no se habilita.' },
+      { t: '¿Qué es?', d: 'Toca una: gasto de tienda (agua, luz, alquiler) o algo de una persona: adelanto, descuento o bono.' },
+      { t: '¿A quién o de qué?', d: 'Si es de una persona, la eliges de la lista. Si es gasto de tienda, escribes de qué se trata.' },
+      { t: 'El monto', d: 'Escríbelo y guarda. El botón te muestra el monto antes de tocarlo.' },
+      { t: 'Si hace falta cambiar algo más', d: 'La fecha, la sede o una nota están escondidas en "+ Cambiar fecha, sede o agregar nota", porque casi nunca se tocan.' },
       { t: 'Consolidado en PDF', d: 'Gerencia y administración tienen la pestaña "Consolidado" para imprimir el resumen del mes.' },
     ],
     ojo: [
       'Fernanda solo ve lo que ella misma registró. Gerencia, administración y el superusuario ven todo.',
       'El histórico de 2026 aparece mezclado por fecha con lo nuevo, a propósito.',
+      'La fecha se pone sola en el día de hoy. Si estás registrando algo de ayer, acuérdate de cambiarla.',
     ],
     novedades: [
+      { f: '2026-07-24', d: 'El formulario se rehizo para el celular: la cámara se abre directo y se elige tocando, casi sin teclado.' },
       { f: '2026-07-17', d: 'Se unificaron Gastos y Pagos en un solo módulo.' },
     ],
   },

@@ -120,7 +120,7 @@ export default function Gastos() {
         : vista === 'consolidado'
           ? <Consolidado mes={fMes} movimientos={delMes} nombrePersona={nombrePersona} />
           : (
-            <table className="tabla">
+            <table className="tabla tabla-movil">
               <thead><tr><th>Fecha</th><th>Tipo</th><th>Persona / Concepto</th><th>Monto</th><th>Medio</th><th>Comprob.</th>{registra && <th></th>}</tr></thead>
               <tbody>
                 {delMes.map((m) => (
@@ -146,6 +146,11 @@ export default function Gastos() {
 
 // ---------------------------------------------------------------------
 // Formulario AL REVÉS: primero el comprobante (o "en efectivo"), luego los datos.
+// Pensado para el CELULAR, igual que la pantalla de compras de Juan: la cámara se
+// abre directo (capture), los botones miden 44px o más, y lo que se elige entre
+// pocas opciones va en pastillas, no en desplegables (en el celular los
+// desplegables son el peor control que hay).
+// Reusa las clases .ch-* de Compras: son estilos de formulario móvil compartidos.
 function FormGasto({ perfil, personas, sedes, onListo }) {
   const vacio = { fecha: hoy(), tipo: 'gasto', persona_id: '', concepto: '', monto: '', medio_pago: 'yape', sede_id: '', nota: '' }
   const [g, setG] = useState(vacio)
@@ -153,6 +158,7 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
   const [efectivo, setEfectivo] = useState(false)   // sin comprobante
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
+  const [masDatos, setMasDatos] = useState(false)   // fecha/sede/nota: casi nunca se tocan
   const pidePersona = TIPOS.find((t) => t.k === g.tipo)?.persona
   // Paso 1 listo: hay voucher, o se marcó "en efectivo".
   const paso1 = !!file || efectivo
@@ -188,69 +194,90 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
   }
 
   return (
-    <div className="panel-detalle">
+    <div className="panel-detalle ch">
       <h3>➕ Registrar gasto o pago</h3>
       {error && <div className="alerta">{error}</div>}
 
-      {/* PASO 1 — comprobante primero */}
-      <div className="paso-voucher">
-        <span className="t-label">1 · Comprobante</span>
-        {!efectivo && (
-          <label className="campo">
-            <span>Voucher (foto del Yape/pago)</span>
-            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+      {/* PASO 1 — el comprobante va primero, siempre */}
+      {!paso1 ? (
+        <div className="paso-voucher">
+          <label className="ch-foto">
+            📷 Tomar foto del comprobante
+            <input type="file" accept="image/*,application/pdf" capture="environment" style={{ display: 'none' }}
+              onChange={(e) => setFile(e.target.files?.[0] || null)} />
           </label>
-        )}
-        {file && !efectivo && <p className="nota">📎 {file.name}</p>}
-        <label className="check-permiso" style={{ marginTop: 8 }}>
-          <input type="checkbox" checked={efectivo} onChange={(e) => { setEfectivo(e.target.checked); if (e.target.checked) setFile(null) }} />
-          <span><b>Sin comprobante — en efectivo</b>. Se registra sin voucher y marcado como pago en efectivo.</span>
-        </label>
-      </div>
-
-      {/* PASO 2 — los datos, habilitados cuando el paso 1 está resuelto */}
-      <div style={{ opacity: paso1 ? 1 : .5, pointerEvents: paso1 ? 'auto' : 'none', marginTop: 6 }}>
-        <span className="t-label">2 · Datos</span>
-        <div className="filtros">
-          <label className="campo"><span>Tipo</span>
-            <select value={g.tipo} onChange={(e) => setG({ ...g, tipo: e.target.value, persona_id: '', concepto: '' })}>
-              {TIPOS.map((t) => <option key={t.k} value={t.k}>{t.label}</option>)}
-            </select></label>
-          {pidePersona ? (
-            <label className="campo"><span>Persona *</span>
-              <select value={g.persona_id} onChange={(e) => setG({ ...g, persona_id: e.target.value })}>
-                <option value="">Elige…</option>
-                {personas.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos || ''}</option>)}
-              </select></label>
-          ) : (
-            <label className="campo"><span>Concepto *</span>
-              <input value={g.concepto} placeholder="Agua, luz, alquiler…" onChange={(e) => setG({ ...g, concepto: e.target.value })} /></label>
-          )}
-          <label className="campo"><span>Monto (S/) *</span>
-            <input type="number" step="0.01" className="in-num" value={g.monto} onChange={(e) => setG({ ...g, monto: e.target.value })} /></label>
-          <label className="campo"><span>Fecha</span>
-            <input type="date" value={g.fecha} onChange={(e) => setG({ ...g, fecha: e.target.value })} /></label>
-          {!efectivo && (
-            <label className="campo"><span>Medio</span>
-              <select value={g.medio_pago} onChange={(e) => setG({ ...g, medio_pago: e.target.value })}>
-                {MEDIOS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select></label>
-          )}
-          <label className="campo"><span>Sede</span>
-            <select value={g.sede_id} onChange={(e) => setG({ ...g, sede_id: e.target.value })}>
-              <option value="">General</option>
-              {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-            </select></label>
+          <button type="button" className="ch-sec" onClick={() => { setEfectivo(true); setFile(null) }}>
+            Sin comprobante — en efectivo
+          </button>
         </div>
-        <label className="campo campo-ancho" style={{ marginTop: 10 }}>
-          <span>Nota (opcional)</span>
-          <input value={g.nota} onChange={(e) => setG({ ...g, nota: e.target.value })} />
-        </label>
-      </div>
+      ) : (
+        <div className="ch-comp ch-comp-ok" style={{ marginTop: 4 }}>
+          <div className="ch-info">
+            <strong>{efectivo ? 'En efectivo' : 'Con comprobante'}</strong>
+            <span className="ch-sub">{efectivo ? 'Se registra sin voucher' : file?.name}</span>
+          </div>
+          <button type="button" className="ch-btn-comprar" onClick={() => { setFile(null); setEfectivo(false) }}>Cambiar</button>
+        </div>
+      )}
 
-      <div className="acciones" style={{ marginTop: 12 }}>
-        <button className="btn-guardar" onClick={guardar} disabled={ocupado || !paso1}>
-          {ocupado ? 'Guardando…' : (paso1 ? `Guardar ${TIPO_LABEL[g.tipo].toLowerCase()}` : 'Primero el comprobante o marca "en efectivo"')}
+      {/* PASO 2 — los datos, recién cuando el comprobante está resuelto */}
+      <div style={{ opacity: paso1 ? 1 : .45, pointerEvents: paso1 ? 'auto' : 'none' }}>
+        <label className="ch-lbl">¿Qué es?</label>
+        <div className="ch-pills ch-pills-wrap">
+          {TIPOS.map((t) => (
+            <button type="button" key={t.k} className={g.tipo === t.k ? 'ch-pill act' : 'ch-pill'}
+              onClick={() => setG({ ...g, tipo: t.k, persona_id: '', concepto: '' })}>{t.label}</button>
+          ))}
+        </div>
+
+        {pidePersona ? (<>
+          <label className="ch-lbl">¿A quién?</label>
+          <select className="ch-select" value={g.persona_id} onChange={(e) => setG({ ...g, persona_id: e.target.value })}>
+            <option value="">Elige la persona…</option>
+            {personas.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos || ''}</option>)}
+          </select>
+        </>) : (<>
+          <label className="ch-lbl">¿De qué?</label>
+          <input className="ch-select" value={g.concepto} placeholder="Agua, luz, alquiler…"
+            onChange={(e) => setG({ ...g, concepto: e.target.value })} />
+        </>)}
+
+        <label className="ch-lbl">Monto</label>
+        <input className="ch-precio" inputMode="decimal" placeholder="0.00"
+          value={g.monto} onChange={(e) => setG({ ...g, monto: e.target.value })} />
+
+        {!efectivo && (<>
+          <label className="ch-lbl">¿Cómo se pagó?</label>
+          <div className="ch-pills ch-pills-wrap">
+            {MEDIOS.map((m) => (
+              <button type="button" key={m} className={g.medio_pago === m ? 'ch-pill act' : 'ch-pill'}
+                onClick={() => setG({ ...g, medio_pago: m })}>{m}</button>
+            ))}
+          </div>
+        </>)}
+
+        {/* Fecha, sede y nota casi nunca se cambian: van escondidas para no estorbar. */}
+        {!masDatos ? (
+          <button type="button" className="ch-sec" onClick={() => setMasDatos(true)}>
+            + Cambiar fecha, sede o agregar nota
+          </button>
+        ) : (<>
+          <label className="ch-lbl">Fecha</label>
+          <input className="ch-select" type="date" value={g.fecha} onChange={(e) => setG({ ...g, fecha: e.target.value })} />
+          <label className="ch-lbl">Sede</label>
+          <div className="ch-pills ch-pills-wrap">
+            <button type="button" className={!g.sede_id ? 'ch-pill act' : 'ch-pill'} onClick={() => setG({ ...g, sede_id: '' })}>General</button>
+            {sedes.map((s) => (
+              <button type="button" key={s.id} className={g.sede_id === s.id ? 'ch-pill act' : 'ch-pill'}
+                onClick={() => setG({ ...g, sede_id: s.id })}>{s.nombre}</button>
+            ))}
+          </div>
+          <label className="ch-lbl">Nota (opcional)</label>
+          <input className="ch-select" value={g.nota} onChange={(e) => setG({ ...g, nota: e.target.value })} />
+        </>)}
+
+        <button type="button" className="ch-guardar" onClick={guardar} disabled={ocupado || !paso1}>
+          {ocupado ? 'Guardando…' : `Guardar ${TIPO_LABEL[g.tipo].toLowerCase()}${Number(g.monto) > 0 ? ` · ${soles(g.monto)}` : ''}`}
         </button>
       </div>
     </div>
