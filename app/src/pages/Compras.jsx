@@ -1162,7 +1162,7 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
                       <td><strong>{prod?.nombre || it.nombre_libre || '—'}</strong></td>
                       <td>
                         {juanEdita ? (
-                          <span className="form-inline" style={{ gap: 4 }}>
+                          <span className="celda-accion">
                             <input type="number" step="0.001" defaultValue={it.cantidad} className="in-num" style={{ maxWidth: 80 }}
                               onBlur={(e) => Number(e.target.value) !== Number(it.cantidad) && editarItem(it, 'cantidad', Number(e.target.value) || 0)} />
                             <select value={it.unidad || prod?.unidad || ''} onChange={(e) => editarItem(it, 'unidad', e.target.value)}>

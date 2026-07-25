@@ -80,30 +80,43 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
       <p className="nota">Conforme llega, marca cuánto recibiste de cada producto. Cada recepción descuenta del almacén.</p>
       {msg && <div className="alerta">{msg}</div>}
       {!lista ? <p className="nota">Esta sede no tiene una lista enviada por recibir.</p> : (<>
-        <table className="tabla">
-          <thead><tr><th>Producto</th><th>Pidieron</th><th>Compró</th><th>Llegó</th>{puedeRecibir && <th>Recibir ahora</th>}</tr></thead>
-          <tbody>
-            {items.map((it) => {
-              const ped = Number(it.cantidad || 0), rec = Number(it.cantidad_recibida || 0)
-              const completo = rec >= ped, rem = Math.max(0, ped - rec)
-              return (
-                <tr key={it.id} className={completo ? 'fila-inactiva' : ''}>
-                  <td><strong>{prodN[it.producto_id]?.nombre || it.nombre_libre || '—'}</strong> <span className="nota">{it.unidad || ''}</span></td>
-                  <td>{ped.toLocaleString('es-PE')}</td>
-                  <td className="nota">{comprado[it.producto_id] ? Number(comprado[it.producto_id]).toLocaleString('es-PE') : '—'}</td>
-                  <td>{rec.toLocaleString('es-PE')} {completo && <span className="chip chip-ok" style={{ marginLeft: 4 }}>completo</span>}</td>
-                  {puedeRecibir && <td>{completo ? '—' : (
-                    <span className="form-inline" style={{ gap: 4 }}>
-                      <input type="number" step="0.001" placeholder={String(rem)} className="in-num" value={recibir[it.id] ?? ''} onChange={(e) => setRecibir((s) => ({ ...s, [it.id]: e.target.value }))} style={{ maxWidth: 80 }} />
-                      <button className="btn-mini btn-ok" onClick={() => darRecepcion(it)}>✓ Recibí</button>
+        {/* Tarjetas y no tabla: una tabla de 5 columnas con un campo y un botón
+            adentro no entra en un celular, y esto se usa desde el celular. */}
+        <div className="ch">
+          {items.map((it) => {
+            const ped = Number(it.cantidad || 0), rec = Number(it.cantidad_recibida || 0)
+            const completo = rec >= ped, rem = Math.max(0, ped - rec)
+            const compro = comprado[it.producto_id]
+            return (
+              <div key={it.id} className={completo ? 'ch-fila ch-listo' : 'ch-fila'}>
+                <div className="ch-cab" style={{ cursor: 'default' }}>
+                  <div className="ch-info">
+                    <strong>{prodN[it.producto_id]?.nombre || it.nombre_libre || '—'}</strong>
+                    <span className="ch-sub">
+                      Pidieron {ped.toLocaleString('es-PE')} {it.unidad || ''}
+                      {compro ? ` · compró ${Number(compro).toLocaleString('es-PE')}` : ''}
                     </span>
-                  )}</td>}
-                </tr>
-              )
-            })}
-            {items.length === 0 && <tr><td colSpan={puedeRecibir ? 5 : 4} className="nota">La lista no tiene productos.</td></tr>}
-          </tbody>
-        </table>
+                    <span className={completo ? 'ch-sub2 ch-hay' : 'ch-sub2'}>
+                      Llegó {rec.toLocaleString('es-PE')}{!completo && rem > 0 ? ` · faltan ${rem.toLocaleString('es-PE')}` : ''}
+                    </span>
+                  </div>
+                  {completo && <span className="ch-check">✓</span>}
+                </div>
+                {puedeRecibir && !completo && (
+                  <div className="ch-form">
+                    <label className="ch-lbl">¿Cuánto llegó?</label>
+                    <div className="ch-recibir">
+                      <input inputMode="decimal" placeholder={String(rem)} value={recibir[it.id] ?? ''}
+                        onChange={(e) => setRecibir((s) => ({ ...s, [it.id]: e.target.value }))} />
+                      <button type="button" className="ch-guardar" onClick={() => darRecepcion(it)}>✓ Recibí</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {items.length === 0 && <p className="nota">La lista no tiene productos.</p>}
+        </div>
         {pendientes.length === 0 && items.length > 0 && <p className="aviso-ok">✅ Todo lo de la lista fue recibido.</p>}
 
         {puedeRecibir && (
@@ -122,7 +135,7 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
 
         {movs.length > 0 && (<>
           <h4 className="sub-titulo" style={{ marginTop: 16 }}>Recibido últimamente</h4>
-          <table className="tabla">
+          <table className="tabla tabla-movil">
             <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Detalle</th></tr></thead>
             <tbody>
               {movs.slice(0, 20).map((m) => (

@@ -105,7 +105,7 @@ export default function ConteoAlmacen({ perfil, puedeContar }) {
                 </td>
                 {puedeContar && (
                   <td>
-                    <span className="form-inline" style={{ gap: 6 }}>
+                    <span className="celda-accion">
                       <input type="number" step="0.001" className="in-num" placeholder={String(num(s.stock))}
                         value={c ?? ''} onChange={(e) => setCuenta((x) => ({ ...x, [s.producto_id]: e.target.value }))}
                         style={{ maxWidth: 90 }} />

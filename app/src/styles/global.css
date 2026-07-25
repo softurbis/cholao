@@ -526,6 +526,17 @@ body {
 .ch-pills-wrap { flex-wrap: wrap; }
 .ch-pills-wrap .ch-pill { flex: 1 1 30%; min-width: 92px; }
 .ch-select { width: 100%; height: 46px; font-size: 16px; }
+/* Recepción: el campo y el botón "Recibí", uno al lado del otro y grandes */
+.ch-recibir { display: flex; gap: 8px; align-items: stretch; }
+.ch-recibir input {
+  flex: 1; min-width: 0; height: 50px; padding: 0 12px; text-align: center;
+  border: 1px solid var(--linea); border-radius: 10px; font-family: inherit; font-size: 20px;
+}
+.ch-recibir .ch-guardar { width: auto; flex: 0 0 130px; margin-top: 0; height: 50px; font-size: 15px; }
+/* Un campo con su botón DENTRO de una tabla: sin esto el min-width de .form-inline
+   estira la celda y descuadra toda la fila. */
+.celda-accion { display: flex; align-items: center; gap: 6px; margin: 0; flex-wrap: nowrap; }
+.celda-accion input { flex: 0 0 auto; min-width: 0; }
 .ch-pill {
   flex: 1; height: 44px; border-radius: 10px; border: 1px solid var(--linea);
   background: #f4f4f5; font-family: inherit; font-size: 13px; cursor: pointer;
@@ -570,11 +581,34 @@ body {
     position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform .2s; z-index: 15;
   }
   .sidebar.abierto { transform: translateX(0); }
-  .contenido { padding: 64px 18px 24px; }
-  /* Tablas anchas en el celular: se deslizan de lado en vez de romper la pantalla.
-     Va por clase y no sobre `.tabla` para no alterar todas las pantallas de golpe. */
-  .tabla-movil { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tabla-movil th, .tabla-movil td { white-space: nowrap; }
-  /* El formulario móvil ocupa todo el ancho disponible */
+  .contenido { padding: 64px 14px 24px; }
+
+  /* TABLAS: se deslizan de lado en vez de romper la pantalla. `display:block` es
+     lo que permite el scroll; sin eso la tabla estira el ancho de toda la página
+     y todo lo demás sale corrido. */
+  .tabla, .tabla-movil {
+    display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap;
+  }
+  .tabla th, .tabla td { padding: 9px 10px; }
+  /* Los controles dentro de una tabla no pueden achicarse hasta desaparecer */
+  .tabla .in-num { width: 72px; }
+  .tabla select { max-width: 130px; }
+
+  /* PESTAÑAS: una sola fila que se desliza. Con 10 pestañas, el `wrap` de
+     escritorio ocupaba media pantalla antes de llegar al contenido. */
+  .tab-bar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab { flex: 0 0 auto; white-space: nowrap; padding: 9px 12px; }
+
+  /* Dos columnas no caben: van una debajo de otra */
+  .dos-cols { grid-template-columns: 1fr; gap: 14px; }
+  .tarjetas { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .tarjeta { padding: 12px 13px; }
+
+  .panel-detalle { padding: 12px; }
   .panel-detalle.ch { padding: 12px; }
+  .filtros { padding: 12px; gap: 10px; }
+  /* Que los botones de acción no queden pegados ni se salgan */
+  .acciones { flex-wrap: wrap; }
+  .form-inline { gap: 6px; }
+  h1 { font-size: 20px; }
 }
