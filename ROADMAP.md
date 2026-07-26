@@ -255,6 +255,12 @@ si agregas un módulo nuevo, ponlo en su grupo.
 - `check_estado.js` — chequeo rápido.
 
 ## 📌 Gotchas que cuestan encontrar
+- **Login en el celular:** `inputMode="numeric"` abre el teclado numérico y **ahí no hay forma
+  de escribir letras**, así que quien entra con contraseña (superusuario, admin, gerencia)
+  quedaba bloqueado desde el celular. Ya se había quitado el `pattern="[0-9]*"` por lo mismo,
+  pero el `inputMode` seguía forzándolo. Ahora hay un botón para alternar teclado que se
+  recuerda por aparato (`localStorage` `cholao_teclado`), y si el usuario lleva arroba el
+  teclado de letras se pone solo. Al tocar el PIN/clave, revisar SIEMPRE en un celular real.
 - **Edge Function = slug `quick-api`**, no `admin-usuarios`. Probar: fetch a
   `/functions/v1/quick-api` → 401 = ok, 404 = no desplegada.
 - **`compras.total` es GENERADA** — no insertarla.
