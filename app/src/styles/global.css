@@ -56,6 +56,15 @@ body {
   font-weight: 700; padding: 14px !important;
 }
 .login-pin::placeholder { font-size: 15px; letter-spacing: normal; font-weight: 400; }
+/* Una contraseña con letras no entra con el espaciado pensado para 6 dígitos */
+.login-pin.letras { font-size: 18px !important; letter-spacing: 2px; }
+/* Cambiar entre teclado de números y de letras, para quien entra con clave */
+.login-teclado {
+  width: 100%; margin-top: 8px; padding: 9px; border: 1px solid var(--linea);
+  border-radius: 8px; background: #fff; color: var(--gris);
+  font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.login-teclado:hover { border-color: var(--rojo); color: var(--rojo); }
 /* Quién está entrando, cuando el celular ya lo recuerda */
 .login-quien {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

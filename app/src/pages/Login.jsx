@@ -7,6 +7,11 @@ import { aEmail } from '../lib/roles'
 // persona. Recordar el usuario deja el ingreso en "teclear 6 números", que era
 // justo lo que se pedía. Se guarda SOLO el usuario: el PIN jamás toca el disco.
 const RECORDADO = 'cholao_usuario'
+// Qué teclado abrir en el celular. La cajera teclea 6 números y quiere el teclado
+// numérico; el superusuario y gerencia escriben una clave CON LETRAS y con el
+// teclado numérico simplemente no podían entrar desde el celular. Como el rol no
+// se sabe hasta después de autenticar, se recuerda la elección en ese aparato.
+const TECLADO = 'cholao_teclado'
 
 export default function Login() {
   const { signIn, isSupabaseConfigured } = useAuth()
@@ -16,16 +21,29 @@ export default function Login() {
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
   const [cambiarUsuario, setCambiarUsuario] = useState(false)
+  const [conLetras, setConLetras] = useState(false)
   const refPin = useRef(null)
 
   useEffect(() => {
     const guardado = localStorage.getItem(RECORDADO)
+    if (localStorage.getItem(TECLADO) === 'letras') setConLetras(true)
     if (guardado) {
       setUsuario(guardado)
       // Si ya sabemos quién es, el cursor va directo al PIN.
       setTimeout(() => refPin.current?.focus(), 100)
     } else setCambiarUsuario(true)
   }, [])
+
+  // Un usuario con arroba es un correo, y quien entra con correo usa contraseña,
+  // no PIN: ahí el teclado de letras se pone solo sin que nadie toque nada.
+  const teclas = conLetras || usuario.includes('@')
+
+  function alternarTeclado() {
+    const v = !conLetras
+    setConLetras(v)
+    localStorage.setItem(TECLADO, v ? 'letras' : 'numeros')
+    refPin.current?.focus()
+  }
 
   async function enviar(e) {
     e.preventDefault()
@@ -91,25 +109,26 @@ export default function Login() {
             </div>
           )}
 
-          {/* inputMode="numeric" abre el teclado de números en el celular, que es
-              donde se usa esto. type="password" para que no se lea por encima
-              del hombro en el mostrador. */}
-          {/* inputMode="numeric" sugiere el teclado de números en el celular
-              (el caso de la cajera), pero SIN pattern: el superadmin y gerencia
-              entran con su contraseña normal, que lleva letras. El pattern
-              "[0-9]*" los bloqueaba con "usa un formato que coincida". */}
+          {/* type="password" para que no se lea por encima del hombro en el
+              mostrador. El teclado depende de quién entra: numérico para el PIN
+              de 6 números de la cajera, de letras para la clave del superusuario
+              y gerencia — con el numérico no podían ni escribirla en el celular. */}
           <input
             ref={refPin}
             type="password"
-            inputMode="numeric"
+            inputMode={teclas ? 'text' : 'numeric'}
             autoComplete="current-password"
-            placeholder="Clave o PIN"
+            placeholder={teclas ? 'Contraseña' : 'PIN de 6 números'}
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             disabled={!isSupabaseConfigured}
-            className="login-pin"
+            className={teclas ? 'login-pin letras' : 'login-pin'}
             required
           />
+
+          <button type="button" className="login-teclado" onClick={alternarTeclado}>
+            {teclas ? '🔢 Entro con PIN de números' : '🔤 Mi clave tiene letras'}
+          </button>
 
           {error && <div className="login-error">{error}</div>}
           <button type="submit" disabled={!isSupabaseConfigured || cargando || !usuario || !pin}>
