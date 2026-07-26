@@ -11,19 +11,15 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-1. ⬜ **Correr `sql/33_consolidado_se_limpia.sql`** — arregla que el consolidado **no se
-   limpiaba solo**: las vistas filtran `compras_lista_items.comprado = false` y NADA ponía ese
-   campo en true (el `comprado = true` del código era sobre `pedido_items`, otra tabla). Lo que
-   una sede pedía el lunes le seguía saliendo a Juan el miércoles y terminaba comprando de más.
-   Ahora un ítem se marca atendido cuando **LLEGÓ** a la sede (comprado y no entregado sigue
-   siendo pendiente) y la lista se cierra sola cuando no le queda nada por llegar. Incluye el
-   arreglo de lo ya recibido antes del cambio. **El frontend no necesita cambios.**
-2. ⬜ **Poner la ubicación de cada sede** — Sedes → 📍 Ubicación → "Usar mi ubicación actual",
-   **parado DENTRO del local**. **Sin esto nadie puede marcar asistencia**: la pantalla avisa
-   "tu sede todavía no tiene su ubicación configurada".
-3. ⬜ **Correr `sql/34_horarios.sql`** — `personas.pago_hora`, tabla `horarios_programados`
-   y `vista_horarios` (con las horas ya calculadas, contemplando turnos que cruzan medianoche).
-   **El frontend ya está en código, sin desplegar.**
+Dos cosas de configuración que solo puede hacer el usuario, y sin las cuales esos módulos
+no arrancan:
+
+1. ⬜ **Ubicación de cada sede** — Sedes → 📍 Ubicación → "Usar mi ubicación actual", **parado
+   DENTRO del local**. **Sin esto nadie puede marcar asistencia** (la pantalla lo avisa).
+2. ⬜ **Pago por hora de cada persona** — Personas. Sin esto Horarios muestra las horas pero
+   no a cuánto equivalen.
+
+_Nada pendiente de SQL (01→34 corridos). Todo desplegado (commit `8f4d289`)._
 
 ## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
 
@@ -129,7 +125,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→32. **Pendiente:** sql/33 y sql/34.
+**SQL corridos:** 01→34. **Pendiente:** ninguno.
 
 ### 📅 Horarios (nuevo, 25-jul-2026)
 Programación por **fecha** (una fila = persona + día + sede + horas), no plantilla semanal
