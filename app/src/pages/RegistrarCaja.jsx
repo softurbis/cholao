@@ -6,6 +6,7 @@ import { parseArqueo } from '../lib/parseArqueo'
 import { parseProductos, cruzarConStock } from '../lib/parseProductos'
 import { climaDe } from '../lib/clima'
 import { puedeEditar } from '../lib/roles'
+import { comprimirVoucher } from '../lib/comprimirImagen'
 import Manual from '../components/Manual'
 
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -403,13 +404,15 @@ export default function RegistrarCaja() {
     // sube todos los adjuntos (arqueo, 2º reporte, voucher foto, facturas)
     let primeroArqueo = null
     for (const a of adjuntos) {
-      const ext = (a.file.name.split('.').pop() || 'bin').toLowerCase()
+      // Los PDF del POS pasan intactos; las fotos (voucher, facturas) se achican.
+      const arch = await comprimirVoucher(a.file)
+      const ext = (arch.name.split('.').pop() || 'bin').toLowerCase()
       const ruta = `${turno.fecha}/${turno.sede_id}-${turno.turno}-${a.tipo}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
-      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, a.file, { contentType: a.file.type || undefined, upsert: true })
+      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, arch, { contentType: arch.type || undefined, upsert: true })
       if (eUp) { aviso('err', 'No pude subir ' + a.file.name + ': ' + eUp.message); continue }
       await supabase.from('caja_adjuntos').insert({
-        turno_id: turno.id, tipo: a.tipo, archivo: ruta, nombre: a.file.name,
-        mime: a.file.type || null, subido_por: perfil?.id || null,
+        turno_id: turno.id, tipo: a.tipo, archivo: ruta, nombre: arch.name,
+        mime: arch.type || null, subido_por: perfil?.id || null,
       })
       if (a.tipo === 'arqueo' && !primeroArqueo) primeroArqueo = ruta
     }

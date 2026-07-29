@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { veTodo, puedeEditar } from '../lib/roles'
 import Manual from '../components/Manual'
+import { comprimirSelfie } from '../lib/comprimirImagen'
 
 // Asistencia con selfie y georreferencia.
 //
@@ -114,9 +115,10 @@ function Marcar({ perfil }) {
     if (!file) return
     setPaso('guardando'); setErr('')
     try {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const foto = await comprimirSelfie(file)
+      const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase()
       const ruta = `asistencia/${hoyISO()}/${perfil.id}-${tipo}-${Date.now()}.${ext}`
-      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined })
+      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, foto, { contentType: foto.type || undefined })
       if (eUp) throw new Error('No se pudo subir la foto: ' + eUp.message)
       const { error } = await supabase.from('asistencia_marcas').insert({
         perfil_id: perfil.id, sede_id: sedeSel, tipo, fecha: hoyISO(),

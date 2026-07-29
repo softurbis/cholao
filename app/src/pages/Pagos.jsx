@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { comprimirVoucher } from '../lib/comprimirImagen'
 import { useAuth } from '../context/AuthContext'
 
 // Panel independiente (en desuso): gastos de tienda + adelantos, descuentos y
@@ -124,6 +125,7 @@ function FormPago({ perfil, personas, sedes, onListo }) {
 
     let voucher_url = null
     if (file) {
+      file = await comprimirVoucher(file)
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
       const ruta = `pagos/${g.fecha}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
       const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined })

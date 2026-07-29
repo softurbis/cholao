@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { puedeEditar, veTodo, puedeGastos } from '../lib/roles'
 import Manual from '../components/Manual'
+import { comprimirVoucher } from '../lib/comprimirImagen'
 
 // Módulo GASTOS unificado: gastos de tienda + adelantos/descuentos/bonos por
 // persona, todo con su voucher (o marcado "en efectivo, sin comprobante").
@@ -176,9 +177,10 @@ function FormGasto({ perfil, personas, sedes, onListo }) {
 
     let voucher_url = null
     if (file && !efectivo) {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const foto = await comprimirVoucher(file)
+      const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase()
       const ruta = `pagos/${g.fecha}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
-      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined })
+      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, foto, { contentType: foto.type || undefined })
       if (eUp) { setError('No pude subir el voucher: ' + eUp.message); setOcupado(false); return }
       voucher_url = ruta
     }

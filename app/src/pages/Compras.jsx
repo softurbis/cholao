@@ -8,6 +8,7 @@ import ComprasHoy from '../components/ComprasHoy'
 import ControlCompras from '../components/ControlCompras'
 import ConteoAlmacen from '../components/ConteoAlmacen'
 import Manual from '../components/Manual'
+import { comprimirVoucher } from '../lib/comprimirImagen'
 
 const soles = (n) => 'S/ ' + Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -17,7 +18,8 @@ const diaAnterior = (iso) => { const d = new Date(iso + 'T12:00:00'); d.setDate(
 // Sube varios archivos al bucket arqueos bajo un prefijo; devuelve las rutas.
 async function subirVouchers(files, prefijo) {
   const rutas = []
-  for (const f of files) {
+  for (const original of files) {
+    const f = await comprimirVoucher(original)
     const ext = (f.name.split('.').pop() || 'jpg').toLowerCase()
     const ruta = `${prefijo}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
     const { error } = await supabase.storage.from('arqueos').upload(ruta, f, { contentType: f.type || undefined })
@@ -367,9 +369,10 @@ function FormCompra({ perfil, catalogo, sedes, catProv, onCrearProv, onListo }) 
 
     let voucher_url = null
     if (file && !efectivo) {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const foto = await comprimirVoucher(file)
+      const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase()
       const ruta = `compras/${cab.fecha}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
-      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined })
+      const { error: eUp } = await supabase.storage.from('arqueos').upload(ruta, foto, { contentType: foto.type || undefined })
       if (eUp) { setError('No pude subir el voucher: ' + eUp.message); setOcupado(false); return }
       voucher_url = ruta
     }
@@ -785,9 +788,10 @@ function CatalogoTab({ catalogo, puedeEditar, onCambio }) {
   }
   async function subirFoto(p, file) {
     if (!file) return
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const foto = await comprimirVoucher(file)
+    const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase()
     const ruta = `productos/${p.id}.${ext}`
-    const { error } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined, upsert: true })
+    const { error } = await supabase.storage.from('arqueos').upload(ruta, foto, { contentType: foto.type || undefined, upsert: true })
     if (error) return alert('No pude subir la foto: ' + error.message)
     await editar(p.id, 'foto_url', ruta)
   }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { comprimirVoucher } from '../lib/comprimirImagen'
 
 // "Compras de hoy" — la pantalla ÚNICA de quien opera compras, en el celular.
 //
@@ -393,9 +394,10 @@ function ComprobanteActivo({ comp, abierto, proveedores, fecha, nCompras, onAbri
     setSubiendo(true); setErr('')
     let voucher_url = null
     if (!efectivo && file) {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const foto = await comprimirVoucher(file)
+      const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase()
       const ruta = `compras/${fecha}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
-      const { error } = await supabase.storage.from('arqueos').upload(ruta, file, { contentType: file.type || undefined })
+      const { error } = await supabase.storage.from('arqueos').upload(ruta, foto, { contentType: foto.type || undefined })
       if (error) { setSubiendo(false); return setErr('No pude subir la foto: ' + error.message) }
       voucher_url = ruta
     }
