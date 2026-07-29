@@ -97,7 +97,7 @@ export default function Personas() {
       const r = await crearUsuario(datos)
       // Se muestra la clave UNA vez para que se la dicten a la persona. No se
       // guarda en ningún lado: si se pierde, se resetea desde acá.
-      setCredencial({ usuario: r.usuario, clave: datos.clave, nombre: datos.nombre })
+      setCredencial({ usuario: r.usuario, clave: datos.clave, nombre: datos.nombre, esCorreo: !!datos.correo })
       setCreandoPara(null)
       aviso('ok', `✅ Login creado para ${datos.nombre}`)
       cargar()
@@ -105,14 +105,23 @@ export default function Personas() {
     setGuardando(false)
   }
 
+  // Quien entra con correo usa contraseña, no PIN: pedirle 6 dígitos sería
+  // cambiarle la forma de entrar sin avisarle.
   async function resetear(pf) {
-    const clave = prompt(`Nuevo PIN para "${pf.usuario}" — 6 números:`, sugerirPin())
+    const esCorreo = (pf.usuario || '').includes('@')
+    const clave = esCorreo
+      ? prompt(`Nueva contraseña para "${pf.usuario}" — mínimo 6 caracteres:`, '')
+      : prompt(`Nuevo PIN para "${pf.usuario}" — 6 números:`, sugerirPin())
     if (!clave) return
-    if (!ES_PIN.test(clave)) return aviso('err', 'El PIN debe ser exactamente 6 números (Supabase no acepta menos de 6).')
+    if (esCorreo) {
+      if (clave.length < 6) return aviso('err', 'La contraseña debe tener al menos 6 caracteres.')
+    } else if (!ES_PIN.test(clave)) {
+      return aviso('err', 'El PIN debe ser exactamente 6 números (Supabase no acepta menos de 6).')
+    }
     try {
       await resetearClave(pf.id, clave)
-      setCredencial({ usuario: pf.usuario, clave, nombre: pf.nombre })
-      aviso('ok', '✅ PIN cambiado')
+      setCredencial({ usuario: pf.usuario, clave, nombre: pf.nombre, esCorreo })
+      aviso('ok', esCorreo ? '✅ Contraseña cambiada' : '✅ PIN cambiado')
     } catch (e) { aviso('err', e.message) }
   }
 
@@ -167,13 +176,16 @@ export default function Personas() {
         <div className="panel-detalle">
           <h3>🔑 Anota estos datos y dáselos a {credencial.nombre}</h3>
           <div className="dos-cols">
-            <p><span className="t-label">Usuario</span> <b className="t-valor">{credencial.usuario}</b></p>
-            <p><span className="t-label">PIN</span> <b className="t-valor" style={{ letterSpacing: 3 }}>{credencial.clave}</b></p>
+            <p><span className="t-label">{credencial.esCorreo ? 'Correo' : 'Usuario'}</span> <b className="t-valor">{credencial.usuario}</b></p>
+            <p><span className="t-label">{credencial.esCorreo ? 'Contraseña' : 'PIN'}</span>
+              <b className="t-valor" style={credencial.esCorreo ? undefined : { letterSpacing: 3 }}>{credencial.clave}</b></p>
           </div>
           <p className="nota">
-            Entra en la misma página escribiendo <b>{credencial.usuario}</b> y su PIN. No necesita correo.
-            En su celular el usuario queda recordado, así que en adelante solo teclea los 6 números.
-            El PIN no se vuelve a mostrar; si se le olvida, se lo cambias desde aquí con <b>Resetear clave</b>.
+            Entra en la misma página escribiendo <b>{credencial.usuario}</b> y su {credencial.esCorreo ? 'contraseña' : 'PIN'}.
+            {credencial.esCorreo
+              ? ' En el celular hay un botón para cambiar al teclado de letras.'
+              : ' No necesita correo. En su celular el usuario queda recordado, así que en adelante solo teclea los 6 números.'}
+            {' '}No se vuelve a mostrar; si se le olvida, se la cambias desde aquí con <b>Resetear clave</b>.
           </p>
           <button className="btn-mini" onClick={() => setCredencial(null)}>Ya lo anoté</button>
         </div>
@@ -384,12 +396,16 @@ function FilaPersona({
 function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
   const [f, setF] = useState({
     usuario: sugerirUsuario(persona.nombres),
+    correo: '',
     clave: sugerirPin(),
     rol: 'cajera',
     sede_id: persona.sede_id || '',
     puede_gastos: false,
     puede_compras: false,
   })
+  // Dos formas de entrar: usuario simple (el personal de tienda, que no tiene
+  // correo) o correo de verdad (gerencia, administración, alguien externo).
+  const [conCorreo, setConCorreo] = useState(false)
   const nombre = `${persona.nombres} ${persona.apellidos || ''}`.trim()
   // Solo cajera/cocina/encargado trabajan en una sede fija (ver ROLES_CON_SEDE).
   const pideSede = necesitaSede(f.rol)
@@ -397,20 +413,52 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
   // registra compras). Gerencia/admin/super ya lo hacen por su rol.
   const ofreceGastos = f.rol === 'cajera'
   const ofreceCompras = f.rol === 'cajera'
-  // Cajera/cocina/compras entran con PIN de 6 números; admin/gerencia con una
-  // contraseña normal (con letras). El input se adapta.
-  const usaPin = ['cajera', 'cocina', 'compras'].includes(f.rol)
+  // Con correo se usa contraseña siempre. Sin correo, el PIN depende del rol:
+  // el personal de tienda teclea 6 números desde el celular.
+  const usaPin = !conCorreo && ['cajera', 'cocina', 'compras'].includes(f.rol)
   const claveOk = usaPin ? ES_PIN.test(f.clave) : f.clave.length >= 6
+  const correoOk = !conCorreo || /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(f.correo)
+
+  // Al cambiar de forma de ingreso, la clave sugerida cambia con ella: un PIN de
+  // 6 dígitos no sirve de contraseña ni al revés.
+  function cambiarModo(v) {
+    setConCorreo(v)
+    setF((x) => ({ ...x, clave: v ? '' : sugerirPin(), correo: v ? x.correo : '' }))
+  }
 
   return (
     <div className="panel-detalle">
       <h3>🔑 Crear login para {nombre}</h3>
+
+      <div className="ch-pills ch-pills-wrap" style={{ maxWidth: 420, marginBottom: 12 }}>
+        <button type="button" className={!conCorreo ? 'ch-pill act' : 'ch-pill'} onClick={() => cambiarModo(false)}>
+          Usuario y PIN
+        </button>
+        <button type="button" className={conCorreo ? 'ch-pill act' : 'ch-pill'} onClick={() => cambiarModo(true)}>
+          Correo y contraseña
+        </button>
+      </div>
+      <p className="nota" style={{ marginTop: 0 }}>
+        {conCorreo
+          ? 'Entra con su correo real y una contraseña. Para gerencia, administración o alguien de fuera.'
+          : 'Entra escribiendo solo su usuario y 6 números, sin correo. Para el personal de tienda.'}
+      </p>
+
       <div className="filtros">
-        <label className="campo">
-          <span>Usuario</span>
-          <input value={f.usuario} onChange={(e) => setF({ ...f, usuario: e.target.value.toLowerCase() })}
-            placeholder="marcelo" autoFocus />
-        </label>
+        {conCorreo ? (
+          <label className="campo campo-ancho">
+            <span>Correo</span>
+            <input type="email" value={f.correo} autoFocus
+              onChange={(e) => setF({ ...f, correo: e.target.value.trim().toLowerCase() })}
+              placeholder="nombre@gmail.com" autoCapitalize="none" autoCorrect="off" spellCheck="false" />
+          </label>
+        ) : (
+          <label className="campo">
+            <span>Usuario</span>
+            <input value={f.usuario} onChange={(e) => setF({ ...f, usuario: e.target.value.toLowerCase() })}
+              placeholder="marcelo" autoFocus />
+          </label>
+        )}
         <label className="campo">
           <span>{usaPin ? 'PIN (6 números)' : 'Contraseña'}</span>
           <input value={f.clave}
@@ -456,20 +504,26 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
       )}
 
       <p className="nota">
-        Entra escribiendo <b>{f.usuario || '…'}</b> y su clave. No necesita correo.
+        Entra escribiendo <b>{(conCorreo ? f.correo : f.usuario) || '…'}</b> y su clave.
+        {!conCorreo && ' No necesita correo.'}
         {pideSede && ' Solo verá los datos de su sede.'}
-        {' '}Para cajeros/cocina el PIN lo pone el sistema (si lo eligieran, sería 123456).
+        {usaPin && ' El PIN lo pone el sistema: si lo eligieran, la mitad pondría 123456.'}
       </p>
       {!claveOk && (
         <p className="alerta">{usaPin
           ? 'El PIN debe ser exactamente 6 números (Supabase no acepta menos de 6).'
           : 'La contraseña debe tener al menos 6 caracteres.'}</p>
       )}
+      {!correoOk && f.correo && <p className="alerta">Ese correo no tiene forma de correo válido.</p>}
 
       <div className="acciones">
-        <button className="btn-guardar" disabled={guardando || !f.usuario || !claveOk || (pideSede && !f.sede_id)}
+        <button className="btn-guardar"
+          disabled={guardando || !claveOk || !correoOk || (conCorreo ? !f.correo : !f.usuario) || (pideSede && !f.sede_id)}
           onClick={() => onCrear({
-            usuario: f.usuario, clave: f.clave, nombre, rol: f.rol,
+            // Si va con correo, el servidor lo usa tal cual; si no, arma
+            // usuario@cholao.local. Se manda solo lo que corresponde.
+            ...(conCorreo ? { correo: f.correo } : { usuario: f.usuario }),
+            clave: f.clave, nombre, rol: f.rol,
             sede_id: pideSede ? f.sede_id : null, persona_id: persona.id,
             puede_gastos: ofreceGastos ? f.puede_gastos : false,
             puede_compras: ofreceCompras ? f.puede_compras : false,

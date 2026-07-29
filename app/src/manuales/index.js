@@ -230,14 +230,20 @@ export const MANUALES = {
     resumen: 'El personal y quién entra al sistema.',
     pasos: [
       { t: 'Registra a la persona', d: 'Sus datos van aquí primero.' },
-      { t: 'Créale su acceso', d: 'Eliges su rol y su usuario. El personal de tienda entra con usuario simple y PIN de 6 números; administración y gerencia con correo y contraseña.' },
+      { t: 'Créale su acceso', d: 'Eliges cómo entra: "Usuario y PIN" para el personal de tienda (escriben su nombre y 6 números, sin correo) o "Correo y contraseña" para gerencia, administración o alguien de fuera. Después su rol y su sede.' },
+      { t: 'Anota lo que sale', d: 'Al crearlo se muestra la clave UNA vez, para que se la dictes. No se guarda en ningún lado: si se pierde, se resetea desde aquí.' },
       { t: 'Permisos especiales', d: 'A una cajera le puedes marcar "puede gastos" (abre Gastos) o "puede compras" (abre Compras), sin cambiarle el rol.' },
     ],
     ojo: [
       'Los desactivados quedan abajo, no se borran.',
       'El rol define qué módulos ve. Gerencia solo mira; administración edita y valida.',
+      'El PIN lo pone el sistema a propósito: si lo eligiera cada quien, la mitad pondría 123456.',
+      'El pago por hora que pongas aquí es la referencia que usa Horarios para estimar las horas extra.',
     ],
-    novedades: [],
+    novedades: [
+      { f: '2026-07-26', d: 'Ahora se puede crear el acceso con un correo real, no solo con usuario y PIN.' },
+      { f: '2026-07-25', d: 'Se agregó el pago por hora de cada persona.' },
+    ],
   },
 
   // -------------------------------------------------------------------

@@ -25,6 +25,12 @@ const DOMINIO = '@cholao.local'
 // convertido en un correo, y sin filtro alguien podría inyectar otra cosa.
 const USUARIO_OK = /^[a-z0-9][a-z0-9._-]{2,29}$/
 
+// Quien SÍ tiene correo (gerencia, administración, contadores externos) puede
+// entrar con él en vez de con un usuario inventado. Validación deliberadamente
+// simple: lo que importa es que sea un correo con forma de correo, no cazar
+// todos los casos raros del RFC.
+const CORREO_OK = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/
+
 // El personal entra con un PIN de 6 números desde el celular de la tienda.
 // SEIS y no cuatro porque GoTrue (el auth de Supabase) rechaza cualquier clave
 // de menos de 6 caracteres: está en su código, no es una opción del panel.
@@ -37,9 +43,11 @@ const PIN_OBVIO = /^(\d)\1{5}$|^(012345|123456|234567|345678|456789|567890|65432
 // tienda usa PIN. Por eso la regla del PIN no se aplica a todos.
 const ROLES_PIN = ['cajera', 'cocina', 'compras', 'encargado', 'almacen']
 
-function claveInvalida(clave: string, rol: string): string | null {
+// `esCorreo`: quien entra con su correo usa CONTRASEÑA, no PIN, sea cual sea su
+// rol. Sin esto, crear con correo a alguien con rol de tienda le exigía 6 dígitos.
+function claveInvalida(clave: string, rol: string, esCorreo = false): string | null {
   if (clave.length < 6) return 'La clave debe tener al menos 6 caracteres'
-  if (!ROLES_PIN.includes(rol)) return null
+  if (esCorreo || !ROLES_PIN.includes(rol)) return null
   if (!PIN_OK.test(clave)) return 'El PIN debe ser exactamente 6 números'
   if (PIN_OBVIO.test(clave)) return 'Ese PIN es demasiado fácil de adivinar. Usa otro.'
   return null
@@ -48,7 +56,7 @@ function claveInvalida(clave: string, rol: string): string | null {
 const ROLES = ['superadmin', 'admin', 'gerente', 'compras', 'cajera', 'cocina', 'encargado', 'almacen']
 
 // Trabajan en un local fijo: cajera, cocina (arma la lista de SU sede) y el
-// encargado histórico. Gerencia/admin ven todo, y compras (Juan) y almacén son
+// encargado histórico. Gerencia/admin ven todo, y compras y almacén son
 // transversales. Debe coincidir con ROLES_CON_SEDE en app/src/lib/roles.js.
 const ROLES_CON_SEDE = ['cajera', 'cocina', 'encargado']
 
@@ -98,21 +106,30 @@ Deno.serve(async (req) => {
   // crear — alta de un login para una persona
   // =====================================================================
   if (accion === 'crear') {
-    const usuario = String(body.usuario ?? '').trim().toLowerCase()
+    // Con correo se entra con el correo tal cual; sin él, se arma
+    // usuario@cholao.local como siempre.
+    const correo = String(body.correo ?? '').trim().toLowerCase()
+    const esCorreo = correo.length > 0
+    const usuario = esCorreo ? correo : String(body.usuario ?? '').trim().toLowerCase()
     const clave = String(body.clave ?? '')
     const nombre = String(body.nombre ?? '').trim()
     const rol = String(body.rol ?? '')
     const sede_id = body.sede_id ? String(body.sede_id) : null
     const persona_id = body.persona_id ? String(body.persona_id) : null
-    const puede_gastos = body.puede_gastos === true    // permiso extra (Fernanda)
-    const puede_compras = body.puede_compras === true  // permiso extra (Juan)
+    const puede_gastos = body.puede_gastos === true    // permiso extra: registra gastos
+    const puede_compras = body.puede_compras === true  // permiso extra: registra compras
 
-    if (!USUARIO_OK.test(usuario)) {
+    if (esCorreo) {
+      if (!CORREO_OK.test(correo)) return json({ error: 'Ese correo no tiene forma de correo válido.' }, 400)
+      if (correo.endsWith(DOMINIO)) {
+        return json({ error: `${DOMINIO} es el dominio interno: para eso usa un usuario simple, no un correo.` }, 400)
+      }
+    } else if (!USUARIO_OK.test(usuario)) {
       return json({ error: 'Usuario inválido: entre 3 y 30 caracteres, solo minúsculas, números, punto, guion o guion bajo, y debe empezar con letra o número.' }, 400)
     }
     if (!nombre) return json({ error: 'Falta el nombre' }, 400)
     if (!ROLES.includes(rol)) return json({ error: 'Rol inválido' }, 400)
-    const malaClave = claveInvalida(clave, rol)
+    const malaClave = claveInvalida(clave, rol, esCorreo)
     if (malaClave) return json({ error: malaClave }, 400)
 
     // El encargado y la cajera trabajan EN una sede. Sin sede, el RLS no les
@@ -121,7 +138,7 @@ Deno.serve(async (req) => {
       return json({ error: 'Ese rol trabaja en una sede: elige cuál.' }, 400)
     }
 
-    const email = usuario + DOMINIO
+    const email = esCorreo ? correo : usuario + DOMINIO
 
     const { data: creado, error: eCrear } = await admin.auth.admin.createUser({
       email,
@@ -131,7 +148,7 @@ Deno.serve(async (req) => {
     })
     if (eCrear) {
       const dup = /already|exists|registered/i.test(eCrear.message)
-      return json({ error: dup ? `El usuario "${usuario}" ya existe` : eCrear.message }, 400)
+      return json({ error: dup ? `${esCorreo ? 'El correo' : 'El usuario'} "${usuario}" ya existe` : eCrear.message }, 400)
     }
 
     const { error: ePerfil } = await admin.from('perfiles').insert({
