@@ -76,8 +76,20 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'Solo POST' }, 405)
 
-  const URL = Deno.env.get('SUPABASE_URL')!
-  const SECRET = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  // La llave del servidor. Supabase la inyecta sola, pero los proyectos migrados
+  // al esquema nuevo de llaves la exponen con otro nombre: se prueban los dos.
+  const URL = Deno.env.get('SUPABASE_URL') ?? ''
+  const SECRET = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    ?? Deno.env.get('SUPABASE_SECRET_KEY')
+    ?? ''
+  // Sin llave, TODO lo de abajo falla con "sesión inválida" y manda a buscar el
+  // problema donde no está. Mejor decir exactamente qué pasa.
+  if (!URL || !SECRET) {
+    return json({
+      error: 'La función no tiene la llave del servidor. En Supabase: Edge Functions → Secrets, '
+        + 'y agrega SUPABASE_SERVICE_ROLE_KEY con la service_role key del proyecto.',
+    }, 500)
+  }
   const admin = createClient(URL, SECRET, { auth: { persistSession: false } })
 
   // ---- Quién llama (del token, no del body) ----
@@ -86,7 +98,9 @@ Deno.serve(async (req) => {
   if (!token) return json({ error: 'Falta el token de sesión' }, 401)
 
   const { data: quien, error: eTok } = await admin.auth.getUser(token)
-  if (eTok || !quien?.user) return json({ error: 'Sesión inválida' }, 401)
+  if (eTok || !quien?.user) {
+    return json({ error: 'Tu sesión venció. Cierra sesión, vuelve a entrar e inténtalo otra vez.' }, 401)
+  }
 
   // ---- Y si es superadmin (contra la base) ----
   // Se usa el cliente admin a propósito: salta el RLS, así que esta consulta
