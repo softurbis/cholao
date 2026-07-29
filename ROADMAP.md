@@ -267,6 +267,21 @@ compra se va, la pantalla no puede seguir diciendo su nombre. Se limpiaron texto
 comentarios y nombres internos de variables. Al escribir cualquier texto nuevo: "quien
 compra", "administración", "el permiso de gastos" — nunca el nombre de nadie.
 
+## 🖼️ Las fotos se comprimen antes de subir
+
+`lib/comprimirImagen.js` reescala y recomprime a JPEG **en el navegador, antes del upload**:
+voucher 1600px/0.72 (hay que poder leerlo), selfie 1000px/0.65 (solo reconocer a la persona,
+y son las que más se acumulan). Está aplicado en los **8 puntos de subida**.
+**Si agregas otra subida de fotos, pásala por ahí.**
+
+Es a prueba de fallos a propósito: los PDF pasan intactos, si `createImageBitmap` rechaza las
+opciones se reintenta sin ellas (si no, la compresión se saltaría **en silencio** justo en los
+celulares), y ante cualquier error se sube la original. Comprimir no puede impedir que alguien
+registre su gasto o marque su asistencia.
+
+⚠️ **Contexto:** la organización de Supabase está **sobre cuota**, con aviso de restricción
+desde el **21-ago-2026**. Falta revisar en el dashboard qué recurso se pasó.
+
 ## 📌 Gotchas que cuestan encontrar
 - **Login en el celular:** `inputMode="numeric"` abre el teclado numérico y **ahí no hay forma
   de escribir letras**, así que quien entra con contraseña (superusuario, admin, gerencia)
