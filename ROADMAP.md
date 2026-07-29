@@ -18,6 +18,12 @@ no arrancan:
    DENTRO del local**. **Sin esto nadie puede marcar asistencia** (la pantalla lo avisa).
 2. ⬜ **Pago por hora de cada persona** — Personas. Sin esto Horarios muestra las horas pero
    no a cuánto equivalen.
+3. ⬜ **Redesplegar la Edge Function `quick-api`** — se le agregó la creación de accesos con
+   **correo real** (`supabase/functions/admin-usuarios/index.ts`). El frontend ya ofrece la
+   opción, pero **hasta que no se redespliegue, elegir "Correo y contraseña" va a fallar**:
+   la versión vieja ignora el campo `correo` y arma `usuario@cholao.local`. Se pega el archivo
+   en el dashboard (Edge Functions → quick-api → Deploy) o
+   `npx supabase functions deploy admin-usuarios --project-ref jselojihwryffbukcvdz`.
 
 _Nada pendiente de SQL (01→34 corridos). Todo desplegado (commit `8f4d289`)._
 
