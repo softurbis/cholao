@@ -102,14 +102,29 @@ body {
   font-size: 19px; font-weight: 800; padding: 8px 10px 4px; letter-spacing: .3px;
 }
 .brand-tag { padding: 0 10px 16px; font-size: 11px; color: var(--amarillo); font-style: italic; font-weight: 600; }
-.sidebar nav { display: grid; gap: 4px; flex: 1; }
+/* El superusuario ve 13 módulos: con los grupos abiertos el menú no entra en la
+   pantalla y empujaba el pie (usuario y "Salir") fuera de vista, dejando los
+   últimos módulos cortados. `min-height: 0` es lo que permite que un hijo flex
+   pueda hacer scroll — sin eso el `flex: 1` lo estira y se desborda igual. */
+.sidebar nav {
+  display: grid; gap: 2px; flex: 1; min-height: 0; overflow-y: auto;
+  align-content: start; scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+.sidebar nav::-webkit-scrollbar { width: 6px; }
+.sidebar nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.3); border-radius: 3px; }
 .nav-item {
-  display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 8px;
+  display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 8px;
   color: #ffe9e9; text-decoration: none; font-size: 14.5px;
 }
 .nav-item:hover { background: rgba(255,255,255,.14); color: #fff; }
 .nav-item.activo { background: #fff; color: var(--rojo); font-weight: 700; }
-.sidebar-pie { border-top: 1px solid rgba(255,255,255,.22); padding-top: 12px; display: grid; gap: 8px; }
+/* El pie y la marca NUNCA se encogen: son lo que se comía el menú largo. */
+.brand, .brand-tag { flex-shrink: 0; }
+.sidebar-pie {
+  border-top: 1px solid rgba(255,255,255,.22); padding-top: 12px;
+  display: grid; gap: 8px; flex-shrink: 0; margin-top: 8px;
+}
 .usuario { display: grid; padding: 0 6px; }
 .usuario small { color: rgba(255,255,255,.75); }
 .btn-salir {
@@ -425,10 +440,10 @@ body {
 .paso-voucher > .t-label, .consolidado .t-label { display: block; margin-bottom: 4px; }
 
 /* ---------- Menú agrupado del panel izquierdo ---------- */
-.nav-grupo { margin-bottom: 2px; }
+.nav-grupo { margin-bottom: 1px; }
 .nav-grupo-cab {
   display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 9px 12px; border: 0; background: transparent; cursor: pointer;
+  padding: 7px 12px; margin-top: 4px; border: 0; background: transparent; cursor: pointer;
   color: rgba(255,255,255,.62); font-family: inherit; font-size: 11px;
   letter-spacing: .6px; text-transform: uppercase; text-align: left;
 }
