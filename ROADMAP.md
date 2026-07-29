@@ -254,6 +254,13 @@ si agregas un módulo nuevo, ponlo en su grupo.
   `import_cye.js`, etc.
 - `check_estado.js` — chequeo rápido.
 
+## 🚫 Nada de nombres propios en la app
+
+Decisión del usuario (26-jul): **la app nombra FUNCIONES, no personas.** Si quien hoy
+compra se va, la pantalla no puede seguir diciendo su nombre. Se limpiaron textos, manuales,
+comentarios y nombres internos de variables. Al escribir cualquier texto nuevo: "quien
+compra", "administración", "el permiso de gastos" — nunca el nombre de nadie.
+
 ## 📌 Gotchas que cuestan encontrar
 - **Login en el celular:** `inputMode="numeric"` abre el teclado numérico y **ahí no hay forma
   de escribir letras**, así que quien entra con contraseña (superusuario, admin, gerencia)
