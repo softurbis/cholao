@@ -21,13 +21,13 @@ export const MANUALES = {
     resumen: 'Aquí pides lo que le hace falta a tu sede, y confirmas lo que te llega.',
     pasos: [
       { t: 'Arma tu lista', d: 'Busca el producto y toca ➕ para sumar, ➖ para bajar. La unidad (kg, litro, unidad) sale sola.' },
-      { t: 'Deja un comentario si hace falta', d: 'En el recuadro de arriba: "que la fresa sea grande", "urgente el hielo". Juan lo lee.' },
-      { t: 'Envíala', d: 'Cuando esté completa, toca "Enviar lista a Juan". Al enviarla queda bloqueada para que nadie la cambie mientras él compra.' },
+      { t: 'Deja un comentario si hace falta', d: 'En el recuadro de arriba: "que la fresa sea grande", "urgente el hielo". Quien compra lo lee.' },
+      { t: 'Envíala', d: 'Cuando esté completa, toca "Enviar lista". Al enviarla queda bloqueada para que nadie la cambie mientras se hacen las compras.' },
       { t: 'Confirma lo que llega', d: 'Abajo, en Recepción: conforme vaya llegando cada cosa, escribe cuánto recibiste y toca "Recibí". Puedes hacerlo de a poquitos, no esperes a que llegue todo.' },
       { t: 'Si llega algo que no pediste', d: 'Úsalo en "Recepción de emergencia" para que quede registrado igual.' },
     ],
     ojo: [
-      'Si te equivocaste después de enviar, pídele a Juan que la libere: él la desbloquea y la puedes corregir.',
+      'Si te equivocaste después de enviar, pide que la liberen: quien compra la desbloquea y la puedes corregir.',
       'En Recepción puedes anotar menos de lo que pediste (llegaron 15 de 20). Después completas el resto cuando llegue.',
       'La lista muestra "pidieron → compró → llegó", así ves si lo que te falta es porque no se compró o porque no ha llegado.',
     ],
@@ -40,15 +40,15 @@ export const MANUALES = {
   // -------------------------------------------------------------------
   compras: {
     titulo: 'Compras',
-    paraQuien: 'Juan. Administración y gerencia también entran.',
-    resumen: 'Todo lo de comprar: el día a día de Juan, su caja, el almacén y los pedidos al por mayor.',
+    paraQuien: 'Quien se encarga de las compras. Administración y gerencia también entran.',
+    resumen: 'Todo lo de comprar: el día a día, la caja de compras, el almacén y los pedidos al por mayor.',
     pasos: [
       { t: '🛒 Comprar hoy — tu pantalla del día', d: 'Arriba ves cuánta plata te queda. Abajo, todo lo que pidieron las sedes. Toca un producto y elige qué hacer con él.' },
       { t: 'Antes de comprar: el comprobante', d: 'Al llegar al proveedor, toca arriba "¿Dónde estás comprando?", pon el nombre y toma la foto UNA vez. Todo lo que registres ahí se le engancha solo. Cuando te muevas a otro sitio, toca "Cambiar".' },
-      { t: 'Las tres salidas de cada producto', d: 'Del almacén (si ya hay stock, se lo entregas a la sede) · Comprar (lo compras con tu plata) · Pedir a Cesar (que lo compre al por mayor; no sale plata tuya).' },
+      { t: 'Las tres salidas de cada producto', d: 'Del almacén (si ya hay stock, se lo entregas a la sede) · Comprar (con la plata de tu caja) · Pedir abastecimiento (para que administración lo compre al por mayor; no sale plata tuya).' },
       { t: 'Al comprar', d: 'Ajusta la cantidad con + y −, pon el precio y elige a dónde va. El botón te muestra el total antes de guardar.' },
-      { t: '💵 Caja de Juan', d: 'Tu cuadre del día. El vuelto de ayer y el efectivo de Amazonas salen solos; tú registras los adicionales que te den y lo que entregues a gerencia. Al cerrar, cuenta tu efectivo y anótalo.' },
-      { t: '📋 Pedidos a Cesar', d: 'Lo que necesitas al por mayor. Lo armas, lo envías, y Cesar compra e ingresa el stock al almacén.' },
+      { t: '💵 Caja de compras', d: 'Tu cuadre del día. El vuelto de ayer y el efectivo de la sede salen solos; tú registras los adicionales que te den y lo que entregues a gerencia. Al cerrar, cuenta tu efectivo y anótalo.' },
+      { t: '📋 Abastecimiento', d: 'Lo que necesitas al por mayor. Lo armas y lo envías; administración lo compra e ingresa el stock al almacén.' },
       { t: '🔢 Conteo almacén', d: 'Cuenta lo que hay de verdad en el almacén y anótalo. Si no coincide con el sistema, se ajusta solo.' },
     ],
     ojo: [
@@ -112,7 +112,7 @@ export const MANUALES = {
   // -------------------------------------------------------------------
   gastos: {
     titulo: 'Gastos',
-    paraQuien: 'Fernanda (registra), Víctor y gerencia (registran y ven todo).',
+    paraQuien: 'Quien registra los gastos, y gerencia y administración (que además ven todo).',
     resumen: 'Gastos de la tienda y adelantos, descuentos y bonos del personal, cada uno con su comprobante.',
     pasos: [
       { t: 'Primero: ¿qué es?', d: 'Toca una: gasto de tienda (agua, luz, alquiler) o algo de una persona: adelanto, descuento o bono.' },
@@ -123,7 +123,7 @@ export const MANUALES = {
       { t: 'Consolidado en PDF', d: 'Gerencia y administración tienen la pestaña "Consolidado" para imprimir el resumen del mes.' },
     ],
     ojo: [
-      'Fernanda solo ve lo que ella misma registró. Gerencia, administración y el superusuario ven todo.',
+      'Quien tiene solo el permiso de gastos ve únicamente lo que él mismo registró. Gerencia, administración y el superusuario ven todo.',
       'El histórico de 2026 aparece mezclado por fecha con lo nuevo, a propósito.',
       'La fecha se pone sola en el día de hoy. Si estás registrando algo de ayer, acuérdate de cambiarla.',
     ],

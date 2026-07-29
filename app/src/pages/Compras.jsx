@@ -77,11 +77,12 @@ function SelectCat({ value, opciones, onChange, onCrear, placeholder }) {
 
 export default function Compras() {
   const { perfil } = useAuth()
-  // Registrar/editar compras y el catálogo: quien opera compras (Juan/admin/super).
+  // Registrar/editar compras y el catálogo: quien opera compras (permiso de compras/admin/super).
   // Antes era `!perfil || rol===superadmin||gerente` → daba acceso sin perfil.
   const esAdmin = puedeCompras(perfil)
-  // Cesar (super/admin): reconfirma pedidos e ingresa al almacén. Juan arma/envía.
-  const esCesar = puedeEditar(perfil)
+  // Administración (super/admin): reconfirma el abastecimiento e ingresa al almacén.
+  // Quien opera compras lo arma y lo envía, pero no se lo aprueba a sí mismo.
+  const esAdministracion = puedeEditar(perfil)
 
   const [compras, setCompras] = useState([])
   const [fondo, setFondo] = useState([])
@@ -195,8 +196,8 @@ export default function Compras() {
 
   return (
     <div className="pagina">
-      <h1>Compras <span className="titulo-tag">Juan</span><Manual modulo="compras" /></h1>
-      <p className="pagina-sub">Lo que piden las sedes, las compras del día, el almacén y la caja de Juan.</p>
+      <h1>🛒 Compras<Manual modulo="compras" /></h1>
+      <p className="pagina-sub">Lo que piden las sedes, las compras del día, el almacén y la caja de compras.</p>
 
       <datalist id="lista-productos">{productos.map((p) => <option key={p} value={p} />)}</datalist>
 
@@ -229,10 +230,10 @@ export default function Compras() {
       </>)}
 
       <div className="tab-bar">
-        {[['hoy', '🛒 Comprar hoy'], ['fondo', '💵 Caja de Juan'],
-          // El panel de revisión es de Cesar/admin: Juan opera, no se audita solo.
-          ...(esCesar ? [['control', '🔎 Control']] : []),
-          ['pedidos', '📋 Pedidos a Cesar'], ['recepcion', '📥 Recepción'], ['conteo', '🔢 Conteo almacén'], ['kardex', '🏬 Almacén / Kardex'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['entregas', 'Entregas (histórico)']].map(([k, l]) => (
+        {[['hoy', '🛒 Comprar hoy'], ['fondo', '💵 Caja de compras'],
+          // El panel de revisión es de administración: quien compra no se audita solo.
+          ...(esAdministracion ? [['control', '🔎 Control']] : []),
+          ['pedidos', '📋 Abastecimiento'], ['recepcion', '📥 Recepción'], ['conteo', '🔢 Conteo almacén'], ['kardex', '🏬 Almacén / Kardex'], ['compras', 'Historial'], ['resumen', 'Rankings'], ['catalogo', '📦 Catálogo'], ['proveedores', '🚚 Proveedores'], ['entregas', 'Entregas (histórico)']].map(([k, l]) => (
           <button key={k} className={vista === k ? 'tab activo' : 'tab'} onClick={() => setVista(k)}>{l}</button>
         ))}
       </div>
@@ -288,7 +289,7 @@ export default function Compras() {
 
 
       {vista === 'fondo' && (
-        <CajaJuanTab sedes={sedes} perfil={perfil} puedeOperar={esAdmin} historico={fondo} />
+        <CajaComprasTab sedes={sedes} perfil={perfil} puedeOperar={esAdmin} historico={fondo} />
       )}
 
       {/* Entregas: data VIEJA del Excel. La app nunca escribió en esta tabla, así que
@@ -306,12 +307,12 @@ export default function Compras() {
         <KardexTab catalogo={catalogo} sedes={sedes} puedeMover={esAdmin} />
       )}
       {vista === 'pedidos' && (
-        <PedidosTab catalogo={catalogo} sedes={sedes} perfil={perfil} esAdmin={esAdmin} esCesar={esCesar} />
+        <PedidosTab catalogo={catalogo} sedes={sedes} perfil={perfil} esAdmin={esAdmin} esAdministracion={esAdministracion} />
       )}
       {vista === 'hoy' && (
         <ComprasHoy perfil={perfil} sedes={sedes} catalogo={catalogo} onCambio={cargarCompras} />
       )}
-      {vista === 'control' && esCesar && (
+      {vista === 'control' && esAdministracion && (
         <ControlCompras sedes={sedes} catalogo={catalogo} />
       )}
       {vista === 'conteo' && (
@@ -325,7 +326,7 @@ export default function Compras() {
 }
 
 // ---------------------------------------------------------------------
-// Registrar una compra de Juan. Igual que Gastos: PRIMERO el comprobante
+// Registrar una compra. Igual que Gastos: PRIMERO el comprobante
 // (voucher o "en efectivo, sin comprobante"), LUEGO los datos. Un solo voucher
 // puede cubrir VARIOS productos → cada producto se guarda como una fila de
 // `compras`, todas con el mismo voucher/comprobante/proveedor/fecha.
@@ -481,7 +482,7 @@ function FormCompra({ perfil, catalogo, sedes, catProv, onCrearProv, onListo }) 
 
 // ---------------------------------------------------------------------
 // Entregas del Excel viejo. La app NUNCA escribió en esta tabla (era el reporte
-// que Juan llevaba a mano antes del sistema), así que no crece y no tiene sentido
+// que se llevaba a mano antes del sistema), así que no crece y no tiene sentido
 // poder editarla: queda como consulta del histórico. Se carga solo al abrir la
 // pestaña, para no pesarle a la pantalla de trabajo.
 function EntregasHistorico({ sedeN, desde, hasta, fSede, busca }) {
@@ -506,7 +507,7 @@ function EntregasHistorico({ sedeN, desde, hasta, fSede, busca }) {
     <div>
       <p className="pagina-sub">
         Entregas a las sedes del reporte que se llevaba antes del sistema. Es historia:
-        no se agregan nuevas y no se edita. Hoy lo que entrega Juan queda en sus compras
+        no se agregan nuevas y no se edita. Hoy lo que se entrega queda en sus compras
         (con su destino) y en Recepción.
       </p>
       {porSede.length > 0 && (
@@ -538,7 +539,7 @@ function EntregasHistorico({ sedeN, desde, hasta, fSede, busca }) {
 }
 
 // ---------------------------------------------------------------------
-// Recepción desde Compras: Juan/almacén elige una sede y valida su entrega.
+// Recepción desde Compras: quien opera compras elige una sede y valida su entrega.
 // (La cocina de cada sede hace lo mismo desde "Mi Lista".)
 function RecepcionTab({ sedes, perfil, puedeRecibir }) {
   const [sedeSel, setSedeSel] = useState(sedes[0]?.id || '')
@@ -559,13 +560,13 @@ function RecepcionTab({ sedes, perfil, puedeRecibir }) {
 }
 
 // ---------------------------------------------------------------------
-// CAJA DIARIA DE JUAN. Su dinero sale SOLO de Amazonas. Cada día:
+// CAJA DIARIA DE COMPRAS. Su dinero sale SOLO de Amazonas. Cada día:
 //   vuelto anterior + efec. Amazonas mañana + efec. Amazonas tarde + adicionales
 //   − compras del día − entregas a gerencia = saldo (base del día siguiente).
 // El efectivo de Amazonas se auto-sugiere desde caja_turno del día que cerró
-// (día anterior); Juan puede corregirlo. Las entregas a gerencia NO son gasto,
+// (día anterior); se puede corregir. Las entregas a gerencia NO son gasto,
 // pero salen de su caja. Adicionales y entregas llevan su(s) comprobante(s).
-function CajaJuanTab({ sedes, perfil, puedeOperar, historico }) {
+function CajaComprasTab({ sedes, perfil, puedeOperar, historico }) {
   const [fecha, setFecha] = useState(fmt(new Date()))
   const [cuadre, setCuadre] = useState(null)       // fila fondo_compras_dia de esta fecha
   const [base, setBase] = useState('')             // base_inicial (vuelto anterior)
@@ -627,7 +628,7 @@ function CajaJuanTab({ sedes, perfil, puedeOperar, historico }) {
 
   return (
     <div>
-      <p className="pagina-sub">La caja de Juan: arranca con el vuelto de ayer más el efectivo de Amazonas (mañana y tarde), registra sus compras y entregas a gerencia, y cierra con el saldo — que es la base del día siguiente.</p>
+      <p className="pagina-sub">La caja de compras: arranca con el vuelto de ayer más el efectivo de Amazonas (mañana y tarde), registra sus compras y entregas a gerencia, y cierra con el saldo — que es la base del día siguiente.</p>
 
       <div className="form-inline" style={{ marginBottom: 8 }}>
         <label className="campo"><span>Día</span><input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></label>
@@ -902,7 +903,7 @@ function ProveedoresTab({ proveedores, puedeEditar, onCambio }) {
 }
 
 // ---------------------------------------------------------------------
-// Almacén central + Kardex. Cesar INGRESA la compra al por mayor; se reparte a
+// Almacén central + Kardex. Administración INGRESA la compra al por mayor; se reparte a
 // las sedes (SALIDA). El kardex muestra, por producto, cada movimiento con el
 // saldo corriendo.
 function KardexTab({ catalogo, sedes, puedeMover }) {
@@ -948,7 +949,7 @@ function KardexTab({ catalogo, sedes, puedeMover }) {
 
   return (
     <div>
-      <p className="pagina-sub">El almacén central: Cesar ingresa la compra al por mayor y se reparte a las sedes. El kardex lleva el saldo de cada producto.</p>
+      <p className="pagina-sub">El almacén central: Administración ingresa la compra al por mayor y se reparte a las sedes. El kardex lleva el saldo de cada producto.</p>
 
       {puedeMover && (
         <div className="panel-detalle">
@@ -1020,20 +1021,20 @@ function KardexTab({ catalogo, sedes, puedeMover }) {
 }
 
 // ---------------------------------------------------------------------
-// Consolidado POR SEDE + Pedidos de Juan a Cesar.
-// Circuito: cocina envía su lista → Juan ve el consolidado (total y por sede) →
-// arma SU pedido (puede pedir en otra unidad, ej. sacos) y lo ENVÍA → Cesar
+// Consolidado POR SEDE + pedidos de abastecimiento.
+// Circuito: cocina envía su lista → quien compra ve el consolidado (total y por sede) →
+// arma SU pedido (puede pedir en otra unidad, ej. sacos) y lo ENVÍA → administración
 // reconfirma, ajusta lo que realmente entra (unidad base del catálogo), pone
 // comprobantes y al ACEPTAR recién ingresa al almacén.
-const EST_LABEL = { pendiente: 'Armando', enviado: 'Enviado a Cesar', comprado: 'Comprado', recibido: 'Recibido', anulado: 'Anulado' }
+const EST_LABEL = { pendiente: 'Armando', enviado: 'Enviado', comprado: 'Comprado', recibido: 'Recibido', anulado: 'Anulado' }
 
-function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
+function PedidosTab({ catalogo, sedes, perfil, esAdmin, esAdministracion }) {
   const [consol, setConsol] = useState([])   // vista_consolidado_sede (producto × sede)
   const [pedidos, setPedidos] = useState([])
   const [items, setItems] = useState([])
   const [cargando, setCargando] = useState(true)
   const [add, setAdd] = useState({})          // {pedidoId: {producto_id, cantidad, unidad}}
-  const [ing, setIng] = useState({})          // {itemId: cantidad_ingreso} — edición de Cesar
+  const [ing, setIng] = useState({})          // {itemId: cantidad_ingreso} — edición de administración
   const [conf, setConf] = useState({})        // {pedidoId: {comprobante, files}}
 
   async function cargar() {
@@ -1094,7 +1095,7 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
   async function quitarItem(id) { await supabase.from('pedido_items').delete().eq('id', id); cargar() }
   async function setEstado(ped, estado) { await supabase.from('pedidos').update({ estado }).eq('id', ped.id); cargar() }
 
-  // Cesar acepta: fija lo que entra al almacén (unidad base), sube comprobantes,
+  // Administración acepta: fija lo que entra al almacén (unidad base), sube comprobantes,
   // crea los ingresos y marca recibido. SOLO aquí se toca el stock.
   async function aceptarEIngresar(ped) {
     const all = itemsDe(ped.id).filter((x) => x.producto_id)
@@ -1133,7 +1134,7 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
 
   return (
     <div>
-      <p className="pagina-sub">Lo que piden las sedes, por sede y sumado. Juan arma su pedido (puede pedir en otra unidad) y lo envía; Cesar reconfirma, pone comprobantes y al aceptar ingresa al almacén.</p>
+      <p className="pagina-sub">Lo que piden las sedes, por sede y sumado. Quien compra arma su pedido (puede pedir en otra unidad) y lo envía; administración reconfirma, pone comprobantes y al aceptar ingresa al almacén.</p>
 
       <div className="panel-detalle">
         <h3>📊 Consolidado — lo que piden las sedes</h3>
@@ -1153,29 +1154,29 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
         )}
       </div>
 
-      {esAdmin && <button className="btn-guardar" style={{ margin: '4px 0 14px' }} onClick={nuevoPedido}>+ Nuevo pedido a Cesar</button>}
+      {esAdmin && <button className="btn-guardar" style={{ margin: '4px 0 14px' }} onClick={nuevoPedido}>+ Nuevo pedido de abastecimiento</button>}
 
       {pedidos.map((ped) => {
         const its = itemsDe(ped.id)
         const armando = ped.estado === 'pendiente'
         const enviado = ped.estado === 'enviado'
         const cerrado = ped.estado === 'recibido' || ped.estado === 'anulado'
-        const juanEdita = esAdmin && armando
-        const cesarConfirma = esCesar && enviado
+        const editaComprador = esAdmin && armando
+        const confirmaAdmin = esAdministracion && enviado
         return (
           <div key={ped.id} className="panel-detalle">
             <h3>Pedido {ped.fecha} <span className={`chip ${ped.estado === 'recibido' ? 'chip-ok' : ped.estado === 'anulado' ? 'chip-off' : ''}`}>{EST_LABEL[ped.estado] || ped.estado}</span>
               {(ped.vouchers?.length > 0 || ped.comprobante) && <span className="nota" style={{ marginLeft: 8 }}>{ped.comprobante || ''} {(ped.vouchers || []).map((v, i) => <button key={i} className="btn-mini" onClick={() => verArchivo(v)}>📎</button>)}</span>}
             </h3>
 
-            {juanEdita && (
+            {editaComprador && (
               <div className="form-inline" style={{ marginBottom: 8 }}>
                 <button className="btn-mini" onClick={() => armarConConsolidado(ped.id)}>⤵ Armar con el consolidado</button>
               </div>
             )}
 
             <table className="tabla">
-              <thead><tr><th>Producto</th><th>Pide Juan</th>{(cesarConfirma || ped.estado === 'recibido') && <th>Entra al almacén</th>}{juanEdita && <th></th>}</tr></thead>
+              <thead><tr><th>Producto</th><th>Se pide</th>{(confirmaAdmin || ped.estado === 'recibido') && <th>Entra al almacén</th>}{editaComprador && <th></th>}</tr></thead>
               <tbody>
                 {its.map((it) => {
                   const prod = prodN[it.producto_id]
@@ -1184,7 +1185,7 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
                     <tr key={it.id}>
                       <td><strong>{prod?.nombre || it.nombre_libre || '—'}</strong></td>
                       <td>
-                        {juanEdita ? (
+                        {editaComprador ? (
                           <span className="celda-accion">
                             <input type="number" step="0.001" defaultValue={it.cantidad} className="in-num" style={{ maxWidth: 80 }}
                               onBlur={(e) => Number(e.target.value) !== Number(it.cantidad) && editarItem(it, 'cantidad', Number(e.target.value) || 0)} />
@@ -1195,7 +1196,7 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
                           </span>
                         ) : <span>{Number(it.cantidad).toLocaleString('es-PE')} {it.unidad || ''}</span>}
                       </td>
-                      {cesarConfirma && (
+                      {confirmaAdmin && (
                         <td>
                           {it.cantidad_ingreso != null
                             ? <span className="nota">{Number(it.cantidad_ingreso).toLocaleString('es-PE')} {prod?.unidad} <span className="chip chip-ok">ya entró</span></span>
@@ -1205,7 +1206,7 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
                         </td>
                       )}
                       {ped.estado === 'recibido' && <td>{it.cantidad_ingreso != null ? `${Number(it.cantidad_ingreso).toLocaleString('es-PE')} ${prod?.unidad || ''}` : '—'}</td>}
-                      {juanEdita && <td><button className="btn-mini btn-peligro" onClick={() => quitarItem(it.id)}>✕</button></td>}
+                      {editaComprador && <td><button className="btn-mini btn-peligro" onClick={() => quitarItem(it.id)}>✕</button></td>}
                     </tr>
                   )
                 })}
@@ -1213,8 +1214,8 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
               </tbody>
             </table>
 
-            {/* Juan: añadir productos + enviar a Cesar */}
-            {juanEdita && (<>
+            {/* Quien compra: añadir productos y enviarlo */}
+            {editaComprador && (<>
               <div className="form-inline" style={{ marginTop: 8 }}>
                 <select value={add[ped.id]?.producto_id || ''} onChange={(e) => { const pid = e.target.value; setAdd((s) => ({ ...s, [ped.id]: { producto_id: pid, cantidad: s[ped.id]?.cantidad || '', unidad: prodN[pid]?.unidad || '' } })) }} style={{ minWidth: 170 }}>
                   <option value="">Añadir producto…</option>
@@ -1229,16 +1230,16 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
                 <button className="btn-mini" onClick={() => addItem(ped.id)}>+ Añadir</button>
               </div>
               <div className="acciones" style={{ marginTop: 10 }}>
-                <button className="btn-guardar" onClick={() => its.length ? setEstado(ped, 'enviado') : alert('Agrega productos primero.')}>📨 Enviar a Cesar</button>
+                <button className="btn-guardar" onClick={() => its.length ? setEstado(ped, 'enviado') : alert('Agrega productos primero.')}>📨 Enviar</button>
                 <button className="btn-mini" onClick={() => setEstado(ped, 'anulado')}>Anular</button>
               </div>
             </>)}
 
-            {/* Enviado, esperando a Cesar: Juan lo ve pero no lo toca */}
-            {enviado && !esCesar && <p className="nota" style={{ marginTop: 8 }}>📨 Enviado. Esperando que Cesar lo reciba e ingrese al almacén.{esAdmin && ' Puedes reabrirlo si hay que corregir.'} {esAdmin && <button className="btn-mini" onClick={() => setEstado(ped, 'pendiente')}>🔓 Reabrir</button>}</p>}
+            {/* Enviado: quien lo armó lo ve pero ya no lo toca */}
+            {enviado && !esAdministracion && <p className="nota" style={{ marginTop: 8 }}>📨 Enviado. Esperando que administración lo reciba e ingrese al almacén.{esAdmin && ' Puedes reabrirlo si hay que corregir.'} {esAdmin && <button className="btn-mini" onClick={() => setEstado(ped, 'pendiente')}>🔓 Reabrir</button>}</p>}
 
-            {/* Cesar: reconfirma, comprobante y acepta */}
-            {cesarConfirma && (
+            {/* Administración: reconfirma, comprobante y acepta */}
+            {confirmaAdmin && (
               <div style={{ marginTop: 10 }}>
                 <div className="form-inline">
                   <input placeholder="N° comprobante mayorista (opcional)" value={conf[ped.id]?.comprobante || ''} onChange={(e) => setConf((s) => ({ ...s, [ped.id]: { ...s[ped.id], comprobante: e.target.value } }))} style={{ minWidth: 200 }} />
@@ -1247,7 +1248,7 @@ function PedidosTab({ catalogo, sedes, perfil, esAdmin, esCesar }) {
                 </div>
                 <div className="acciones" style={{ marginTop: 8 }}>
                   <button className="btn-guardar" onClick={() => aceptarEIngresar(ped)}>✅ Aceptar e ingresar al almacén</button>
-                  <button className="btn-mini" onClick={() => setEstado(ped, 'pendiente')}>🔓 Devolver a Juan</button>
+                  <button className="btn-mini" onClick={() => setEstado(ped, 'pendiente')}>🔓 Devolver</button>
                   <button className="btn-mini" onClick={() => setEstado(ped, 'anulado')}>Anular</button>
                 </div>
               </div>

@@ -8,8 +8,8 @@ const VER_COMO = [
   { label: 'Administrador', rol: 'admin' },
   { label: 'Gerencia', rol: 'gerente' },
   { label: 'Cajero', rol: 'cajera' },
-  { label: 'Cajero + Gastos (Fernanda)', rol: 'cajera', puede_gastos: true },
-  { label: 'Cajero + Compras (Juan)', rol: 'cajera', puede_compras: true },
+  { label: 'Cajero + permiso de gastos', rol: 'cajera', puede_gastos: true },
+  { label: 'Cajero + permiso de compras', rol: 'cajera', puede_compras: true },
   { label: 'Cocina', rol: 'cocina' },
 ]
 

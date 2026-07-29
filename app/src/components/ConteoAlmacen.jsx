@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 // de lo que se registró. Si algo se perdió, se malogró o alguien lo sacó sin anotar,
 // el número no se entera. La única forma de saberlo es contar.
 //
-// Juan cuenta, se guarda el conteo (sistema vs. contado vs. diferencia) y se aplica
+// Se cuenta y se guarda el conteo (sistema vs. contado vs. diferencia) y se aplica
 // el ajuste al kardex como un movimiento normal con nota CONTEO, para que el stock
 // quede igual a la realidad.
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

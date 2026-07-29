@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
-// Panel independiente de Fernanda: gastos de tienda + adelantos, descuentos y
+// Panel independiente (en desuso): gastos de tienda + adelantos, descuentos y
 // bonos por persona, cada uno con su voucher por Yape. Y su consolidado en PDF.
 const TIPOS = [
   { k: 'gasto', label: 'Gasto de tienda', persona: false },   // agua, luz, alquiler…
@@ -29,7 +29,7 @@ export default function Pagos() {
     setCargando(true)
     const [{ data: p }, { data: per }, { data: s }] = await Promise.all([
       supabase.from('pagos_tienda').select('*').order('fecha', { ascending: false }).limit(3000),
-      // vista_personal (sin sueldo): Fernanda no puede leer la tabla personas.
+      // vista_personal (sin sueldo): quien solo registra no puede leer la tabla personas.
       supabase.from('vista_personal').select('id, nombres, apellidos').eq('activo', true).order('nombres'),
       supabase.from('sedes').select('id, nombre').order('nombre'),
     ])

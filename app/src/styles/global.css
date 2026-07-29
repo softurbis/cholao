@@ -471,7 +471,7 @@ body {
 .man-nov li { margin-bottom: 4px; }
 .man-fecha { color: var(--gris); font-variant-numeric: tabular-nums; }
 
-/* ---------- Compras de hoy (la pantalla de Juan, pensada para el dedo) ----------
+/* ---------- Compras de hoy (la pantalla de compras, pensada para el dedo) ----------
    Todo control que se toca mide 44px o más; el único campo con teclado es el precio. */
 .ch { max-width: 520px; margin: 0 auto; padding-bottom: 24px; }
 
@@ -566,7 +566,7 @@ body {
 .ch-nohay { color: var(--gris); }
 .ch-ped { color: var(--azul); }
 
-/* Las tres salidas de un producto: del almacén, comprarlo, o pedírselo a Cesar */
+/* Las tres salidas de un producto: del almacén, comprarlo, o pedir abastecimiento */
 .ch-modos { display: flex; gap: 6px; margin: 12px 0 4px; }
 .ch-modo {
   flex: 1; height: 42px; border-radius: 10px; border: 1px solid var(--linea);

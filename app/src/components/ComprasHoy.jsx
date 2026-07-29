@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-// "Compras de hoy" — la pantalla ÚNICA con la que Juan trabaja en el celular.
+// "Compras de hoy" — la pantalla ÚNICA de quien opera compras, en el celular.
 //
-// Cuando una sede pide algo, Juan tiene TRES salidas, y las tres están aquí:
+// Cuando una sede pide algo hay TRES salidas, y las tres están aquí:
 //   1. DEL ALMACÉN  → si ya hay stock, se lo entrega y sale del almacén.
 //   2. COMPRAR      → lo compra en el mercado con la plata de su caja.
-//   3. PEDIR A CESAR→ el abastecimiento al por mayor; Cesar compra e ingresa el
-//                     stock al almacén (eso NO lo hace Juan).
+//   3. ABASTECIMIENTO→ al por mayor; administración lo compra e ingresa el
+//                     stock al almacén (eso NO lo hace quien compra a diario).
 // Antes cada una vivía en una pestaña distinta y había que saltar entre ellas.
 //
 // Lo demás que sostiene la pantalla:
@@ -32,7 +32,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
   const [consol, setConsol] = useState([])
   const [compras, setCompras] = useState([])
   const [stock, setStock] = useState({})            // {producto_id: cantidad en almacén}
-  const [pedItems, setPedItems] = useState([])      // lo ya pedido a Cesar (pedido abierto)
+  const [pedItems, setPedItems] = useState([])      // lo ya pedido para abastecimiento
   const [caja, setCaja] = useState({ base: 0, manana: 0, tarde: 0, adic: 0, entregas: 0 })
   const [proveedores, setProveedores] = useState([])
   const [refPrecios, setRefPrecios] = useState({})
@@ -161,7 +161,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
         if (error) throw error
 
       } else if (bor.modo === 'pedir') {
-        // El abastecimiento al por mayor: Juan lo pide, Cesar lo compra e ingresa.
+        // El abastecimiento al por mayor: se pide, y administración lo compra e ingresa.
         let ped = (await supabase.from('pedidos').select('id').eq('estado', 'pendiente').order('fecha', { ascending: false }).limit(1)).data?.[0]
         if (!ped) ped = (await supabase.from('pedidos').insert({ estado: 'pendiente', creado_por: perfil?.id || null }).select().single()).data
         const { error } = await supabase.from('pedido_items').insert({
@@ -232,7 +232,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
       {filas.map((p) => {
         const ya = compradoDe[p.clave]
         const hay = stock[p.clave] || 0
-        const pedidoACesar = pedidoDe[p.clave] || 0
+        const pedidoAbast = pedidoDe[p.clave] || 0
         const listo = ya && (p.extra || ya.cantidad >= p.total)
         return (
           <div key={p.clave} className={`ch-fila ${abierto === p.clave ? 'ch-abierta' : ''} ${listo ? 'ch-listo' : ''}`}>
@@ -249,7 +249,7 @@ export default function ComprasHoy({ perfil, sedes, catalogo, onCambio }) {
                 )}
                 <span className="ch-sub2">
                   {hay > 0 ? <span className="ch-hay">Almacén: {hay} {p.unidad}</span> : <span className="ch-nohay">Sin stock</span>}
-                  {pedidoACesar > 0 && <span className="ch-ped"> · pedido a Cesar: {pedidoACesar}</span>}
+                  {pedidoAbast > 0 && <span className="ch-ped"> · pedido al por mayor: {pedidoAbast}</span>}
                 </span>
               </div>
               {listo
@@ -301,7 +301,7 @@ function FormLinea({ p, hay, bor, setBor, sedes, paso, ocupado, refPrecios, onGu
   const modos = [
     ...(hay > 0 ? [['almacen', 'Del almacén']] : []),
     ['comprar', 'Comprar'],
-    ['pedir', 'Pedir a Cesar'],
+    ['pedir', 'Pedir al por mayor'],
   ]
   return (
     <div className="ch-form">
@@ -329,7 +329,7 @@ function FormLinea({ p, hay, bor, setBor, sedes, paso, ocupado, refPrecios, onGu
       </>)}
 
       {bor.modo === 'pedir' && (
-        <p className="ch-aviso">Se lo pides a Cesar para que lo compre al por mayor e ingrese al almacén. No sale plata de tu caja.</p>
+        <p className="ch-aviso">Se pide a administración para que lo compre al por mayor e ingrese al almacén. No sale plata de tu caja.</p>
       )}
 
       {bor.modo !== 'pedir' && (<>
@@ -349,7 +349,7 @@ function FormLinea({ p, hay, bor, setBor, sedes, paso, ocupado, refPrecios, onGu
       <button type="button" className="ch-guardar" disabled={ocupado} onClick={onGuardar}>
         {ocupado ? 'Guardando…'
           : bor.modo === 'almacen' ? `Entregar ${bor.cantidad || 0} ${p.unidad}`
-          : bor.modo === 'pedir' ? `Pedir ${bor.cantidad || 0} ${p.unidad} a Cesar`
+          : bor.modo === 'pedir' ? `Pedir ${bor.cantidad || 0} ${p.unidad} al por mayor`
           : `Guardar · ${soles(total)}`}
       </button>
     </div>
@@ -358,7 +358,7 @@ function FormLinea({ p, hay, bor, setBor, sedes, paso, ocupado, refPrecios, onGu
 
 // ---------------------------------------------------------------------
 // Aviso cuando el precio se sale de lo que se venía pagando. NO bloquea: el precio
-// lo pone Juan según lo que compró y él manda. Sirve para dos cosas: pescar el dedo
+// lo pone quien compra según lo que consiguió, y él manda. Sirve para dos cosas: pescar el dedo
 // de más (35 en vez de 3.50, que le descuadra la caja y nadie lo nota hasta fin de
 // mes) y enterarse de que el mercado se movió.
 // OJO: la prop NO puede llamarse `ref` — React la trata distinto y no llegaría.

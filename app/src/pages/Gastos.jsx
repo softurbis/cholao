@@ -6,9 +6,9 @@ import Manual from '../components/Manual'
 
 // Módulo GASTOS unificado: gastos de tienda + adelantos/descuentos/bonos por
 // persona, todo con su voucher (o marcado "en efectivo, sin comprobante").
-//   · Víctor (gerente), Cesar (super) y admin: ven TODO (lo nuevo + el histórico
+//   · Gerencia, superusuario y admin: ven TODO (lo nuevo + el histórico
 //     2026, mezclado por fecha) + el consolidado en PDF.
-//   · Fernanda (cajera con permiso): solo INGRESA y ve lo que ella registró.
+//   · Quien solo tiene el permiso de gastos: INGRESA y ve lo que él registró.
 // `voucher`: si ese tipo mueve plata de verdad y por tanto puede tener comprobante.
 // Un descuento o un bono son apuntes de planilla, no un pago con voucher: pedirles
 // comprobante era un paso vacío que había que saltar todos los días.
@@ -26,8 +26,8 @@ const mesActual = () => hoy().slice(0, 7)
 
 export default function Gastos() {
   const { perfil } = useAuth()
-  const veTodos = veTodo(perfil)          // Víctor / Cesar / admin
-  const registra = puedeGastos(perfil)    // los de arriba + Fernanda
+  const veTodos = veTodo(perfil)          // gerencia / super / admin
+  const registra = puedeGastos(perfil)    // los de arriba + el permiso especial
 
   const [pagos, setPagos] = useState([])       // pagos_tienda (lo nuevo)
   const [ledger, setLedger] = useState([])     // gastos (histórico 2026), solo si veTodos
@@ -44,7 +44,7 @@ export default function Gastos() {
       supabase.from('vista_personal').select('id, nombres, apellidos').eq('activo', true).order('nombres'),
       supabase.from('sedes').select('id, nombre').order('nombre'),
     ]
-    // El histórico solo lo cargan quienes ven todo (Fernanda no lo necesita).
+    // El histórico solo lo cargan quienes ven todo (quien solo registra no lo necesita).
     if (veTodos) consultas.push(supabase.from('gastos').select('*').order('fecha', { ascending: false }).limit(4000))
     const [{ data: p }, { data: per }, { data: s }, g] = await Promise.all(consultas)
     setPagos(p || []); setPersonas(per || []); setSedes(s || [])
@@ -149,7 +149,7 @@ export default function Gastos() {
 
 // ---------------------------------------------------------------------
 // Formulario AL REVÉS: primero el comprobante (o "en efectivo"), luego los datos.
-// Pensado para el CELULAR, igual que la pantalla de compras de Juan: la cámara se
+// Pensado para el CELULAR, igual que la pantalla de compras: la cámara se
 // abre directo (capture), los botones miden 44px o más, y lo que se elige entre
 // pocas opciones va en pastillas, no en desplegables (en el celular los
 // desplegables son el peor control que hay).

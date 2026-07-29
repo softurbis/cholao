@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 // Recepción / validación de entrega de una sede. La sede confirma, CONFORME va
 // llegando, cuánto recibió de cada ítem de su lista; cada recepción descuenta del
 // almacén central (una SALIDA hacia esa sede). Parcial permitido: cantidad_recibida
-// se acumula. Reutilizado por "Mi Lista" (cocina) y por Compras (Juan/almacén).
+// se acumula. Reutilizado por "Mi Lista" (cocina) y por Compras.
 // También deja registrar recepciones de emergencia (fuera de la lista).
 const hoy = () => new Date().toISOString().slice(0, 10)
 
@@ -29,7 +29,7 @@ export default function Recepcion({ sedeId, sedeNombre, perfil, puedeRecibir }) 
       l ? supabase.from('compras_lista_items').select('*').eq('lista_id', l.id).order('id') : Promise.resolve({ data: [] }),
       supabase.from('productos').select('id, nombre, unidad').eq('activo', true).order('nombre'),
       supabase.from('almacen_movimientos').select('*').eq('sede_id', sedeId).eq('tipo', 'salida').order('fecha', { ascending: false }).limit(50),
-      // Lo que Juan compró PARA esta sede desde que se envió la lista: así se ve la
+      // Lo que se compró PARA esta sede desde que se envió la lista: así se ve la
       // cadena completa (pidieron → compró → llegó) sin salir de esta pantalla.
       l ? supabase.from('compras').select('producto_id, cantidad').eq('destino_sede_id', sedeId).gte('fecha', l.fecha) : Promise.resolve({ data: [] }),
     ])

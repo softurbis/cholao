@@ -8,7 +8,7 @@ export const ROLES = {
   superadmin: 'Superusuario',   // tú: control total, configuración, usuarios
   admin: 'Administrador',       // ve todo, EDITA y valida cajas, registra gastos. Sin config.
   gerente: 'Gerencia',          // ve todo (solo mira) + sube sus propios gastos
-  compras: 'Compras',           // Juan: compras y sus gastos del día
+  compras: 'Compras',           // compras del día y su caja
   cajera: 'Cajero',             // registra su caja
   cocina: 'Cocina',             // solo su sede, para armar su lista
   // Históricos (ya no se asignan, se dejan para no romper datos viejos):
@@ -68,7 +68,7 @@ export const ROLE_ACCESS = {
 // Sin rol no se accede a nada. El `|| []` es el fail-closed: un rol no mapeado
 // no ve nada, en vez de verlo todo.
 // Los permisos especiales abren un módulo aunque el rol no lo tenga:
-//   puedeGastos (Fernanda) → Gastos · puedeCompras (Juan) → Compras
+//   puedeGastos → Gastos · puedeCompras → Compras
 export function canAccess(rol, key, opts = {}) {
   if (!rol) return false
   if (key === 'gastos' && opts.puedeGastos) return true
@@ -106,7 +106,7 @@ export function puedeGastos(perfil) {
 }
 
 // Opera compras/almacén: super, admin, el rol histórico 'compras', o el permiso
-// especial (Juan, que es cajera pero registra compras).
+// especial (una cajera que además registra compras).
 export function puedeCompras(perfil) {
   return puedeEditar(perfil) || (!!perfil?.activo && (perfil.rol === 'compras' || !!perfil?.puede_compras))
 }

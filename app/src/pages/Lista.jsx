@@ -6,9 +6,9 @@ import Manual from '../components/Manual'
 
 // "Mi Lista" — lo que cada sede necesita que compren.
 //   Cocina: arma su lista con botones +/− (fácil en celular), le pone un
-//     comentario y la ENVÍA a Juan. Al enviar, queda bloqueada hasta que Juan
+//     comentario y la ENVÍA. Al enviar, queda bloqueada hasta que quien compra
 //     la libere.
-//   Compras (Juan) / admin / super: ven las listas enviadas de todas las sedes,
+//   Compras / admin / super: ven las listas enviadas de todas las sedes,
 //     su comentario, y pueden liberarlas para corregir.
 const hoy = () => new Date().toISOString().slice(0, 10)
 
@@ -110,13 +110,13 @@ export default function Lista() {
     )
   }
 
-  // =================== VISTA JUAN / ADMIN / SUPER ===================
+  // =================== VISTA COMPRAS / ADMIN / SUPER ===================
   const enviadas = listas.filter((l) => l.estado === 'enviada')
   const abiertas = listas.filter((l) => l.estado === 'abierta')
   return (
     <div className="pagina">
       <h1>📝 Listas de las sedes<Manual modulo="lista" /></h1>
-      <p className="pagina-sub">Lo que enviaron las sedes. Libéralas si hay que corregir. El consolidado sumado está en Compras → Pedidos.</p>
+      <p className="pagina-sub">Lo que enviaron las sedes. Libéralas si hay que corregir. El consolidado sumado está en Compras → Comprar hoy.</p>
       {msg && <div className="alerta">{msg}</div>}
 
       <h2 className="sub-titulo">✅ Enviadas ({enviadas.length})</h2>
@@ -161,9 +161,9 @@ function EditorCocina({ lista, items, productos, onCrear, onSet, onComentario, o
 
   return (
     <div>
-      <p className="pagina-sub">Marca con ➕ lo que hace falta. Esta lista es tu guía: cuando esté lista, envíala a Juan.</p>
+      <p className="pagina-sub">Marca con ➕ lo que hace falta. Esta lista es tu guía: cuando esté lista, envíala.</p>
 
-      <textarea className="lista-comentario" placeholder="Comentario para Juan (opcional): ej. 'la fresa que sea grande', 'urgente el hielo'…"
+      <textarea className="lista-comentario" placeholder="Comentario para quien compra (opcional): ej. 'la fresa que sea grande', 'urgente el hielo'…"
         defaultValue={lista?.comentario || ''} onBlur={(e) => lista && onComentario(lista, e.target.value)} />
 
       <div className="form-inline">
@@ -185,12 +185,12 @@ function EditorCocina({ lista, items, productos, onCrear, onSet, onComentario, o
             </div>
           )
         })}
-        {fil.length === 0 && <p className="nota">No hay productos que coincidan. Los agrega Juan en Compras → Catálogo.</p>}
+        {fil.length === 0 && <p className="nota">No hay productos que coincidan. Se agregan en Compras → Catálogo.</p>}
       </div>
 
       <div className="lista-enviar-barra">
         <button className="btn-guardar" disabled={enLista === 0} onClick={() => onEnviar(lista)}>
-          📨 Enviar lista a Juan ({enLista})
+          📨 Enviar lista ({enLista})
         </button>
       </div>
     </div>
@@ -203,7 +203,7 @@ function ListaEnviada({ lista, items }) {
   return (
     <div>
       <div className="aviso-ok" style={{ marginBottom: 12 }}>
-        ✅ Lista <b>enviada a Juan</b>. Quedó bloqueada. Si necesitas cambiar algo, pídele a Juan que la libere.
+        ✅ Lista <b>enviada</b>. Quedó bloqueada. Si necesitas cambiar algo, pide que la liberen.
       </div>
       {lista.comentario && <p className="nota">💬 {lista.comentario}</p>}
       <table className="tabla">
@@ -220,7 +220,7 @@ function ListaEnviada({ lista, items }) {
 }
 
 // ---------------------------------------------------------------------
-// Una lista de sede vista por Juan/admin.
+// Una lista de sede vista por quien compra o administra.
 function ListaSede({ lista, items, nombreSede, acciones }) {
   const pend = items.filter((x) => !x.comprado).length
   return (

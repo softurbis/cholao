@@ -393,8 +393,8 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
   const nombre = `${persona.nombres} ${persona.apellidos || ''}`.trim()
   // Solo cajera/cocina/encargado trabajan en una sede fija (ver ROLES_CON_SEDE).
   const pideSede = necesitaSede(f.rol)
-  // Los permisos extra solo tienen sentido para cajera (Fernanda registra gastos,
-  // Juan registra compras). Gerencia/admin/super ya lo hacen por su rol.
+  // Los permisos extra solo tienen sentido para cajera (una registra gastos, otro
+  // registra compras). Gerencia/admin/super ya lo hacen por su rol.
   const ofreceGastos = f.rol === 'cajera'
   const ofreceCompras = f.rol === 'cajera'
   // Cajera/cocina/compras entran con PIN de 6 números; admin/gerencia con una
@@ -439,7 +439,7 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
           <input type="checkbox" checked={f.puede_gastos}
             onChange={(e) => setF({ ...f, puede_gastos: e.target.checked })} />
           <span>
-            <b>Puede registrar gastos de tienda y adelantos</b> — el caso de Fernanda:
+            <b>Puede registrar gastos de tienda y adelantos</b>:
             además de su caja, sube los gastos del cholao (agua, luz…) y los adelantos de todos.
           </span>
         </label>
@@ -449,7 +449,7 @@ function FormAcceso({ persona, sedes, guardando, onCancelar, onCrear }) {
           <input type="checkbox" checked={f.puede_compras}
             onChange={(e) => setF({ ...f, puede_compras: e.target.checked })} />
           <span>
-            <b>Puede registrar compras</b> — el caso de Juan: además de su caja, opera el módulo
+            <b>Puede registrar compras</b>: además de su caja, opera el módulo
             Compras (catálogo, proveedores, pedidos y sus compras con voucher).
           </span>
         </label>

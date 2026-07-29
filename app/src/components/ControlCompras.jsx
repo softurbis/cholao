@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Panel de control de Cesar. NO frena la operación: Juan compra y todo fluye;
+// Panel de control de administración. NO frena la operación: se compra y todo fluye;
 // aquí se revisa después. Todo va EN SOLES porque los tres riesgos del negocio
 // son de dinero (comprar de más, que no cuadre, que falte producto).
 //
@@ -142,7 +142,7 @@ export default function ControlCompras({ sedes, catalogo }) {
 
       <div className="panel-detalle">
         <h3>¿La plata cuadra?</h3>
-        <p className="nota">El saldo de arriba es aritmética sobre lo que Juan registró: siempre va a cuadrar solo. Lo que de verdad controla es contar el efectivo que le quedó.</p>
+        <p className="nota">El saldo de arriba es aritmética sobre lo que se registró: siempre va a cuadrar solo. Lo que de verdad controla es contar el efectivo que le quedó.</p>
         <div className="form-inline">
           <label className="campo"><span>Efectivo contado</span>
             <input type="number" step="0.01" className="in-num" value={contado} onChange={(e) => setContado(e.target.value)} placeholder={String(deberiaTener.toFixed(2))} style={{ maxWidth: 140 }} />
