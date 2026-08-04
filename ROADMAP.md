@@ -11,6 +11,10 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
+0. ⬜ **Correr `sql/35_recetario.sql`** — tabla `recetas` con RLS **solo para gerencia y
+   administración** (`ve_todo` mira, `puede_editar` escribe). **El frontend ya está en código,
+   sin desplegar.** Después: `bash deploy.sh` + commit + push.
+
 Dos cosas de configuración que solo puede hacer el usuario, y sin las cuales esos módulos
 no arrancan:
 
@@ -131,7 +135,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→34. **Pendiente:** ninguno.
+**SQL corridos:** 01→34. **Pendiente:** sql/35.
 
 ### 📅 Horarios (nuevo, 25-jul-2026)
 Programación por **fecha** (una fila = persona + día + sede + horas), no plantilla semanal
