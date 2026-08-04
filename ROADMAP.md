@@ -1,11 +1,11 @@
 # Sistema Cholao — Hoja de ruta
 
-✅ hecho · 🔨 parcial · ⬜ pendiente · Estado al **17-jul-2026**
+✅ hecho · 🔨 parcial · ⬜ pendiente · Estado al **29-jul-2026**
 
 **App:** https://softurbis.github.io/cholao/ · **Repo:** `softurbis/cholao` · rama `main`
 **Redeploy:** `bash deploy.sh` + commit + push (Pages sirve desde la RAÍZ del repo)
 **Supabase:** proyecto `jselojihwryffbukcvdz` · [SQL editor](https://supabase.com/dashboard/project/jselojihwryffbukcvdz/sql/new)
-**Login superadmin:** `ing.cesarohiggins@gmail.com` (Cesar)
+**Login superadmin:** `ing.cesarohiggins@gmail.com`
 
 ---
 
@@ -29,16 +29,16 @@ no arrancan:
    en el dashboard (Edge Functions → quick-api → Deploy) o
    `npx supabase functions deploy admin-usuarios --project-ref jselojihwryffbukcvdz`.
 
-_Nada pendiente de SQL (01→34 corridos). Todo desplegado (commit `8f4d289`)._
 
-## 🛒 Rediseño de compras (en curso) — "Comprar hoy"
+
+## 🛒 Rediseño de compras — "Comprar hoy" (COMPLETO y desplegado)
 
 Se analizó el flujo y se encontró que **la misma cantidad se escribía 5 veces** en dos
 sistemas sin nexo (`compras` = dinero, `pedido_items`/`almacen_movimientos` = mercadería;
 la tabla `compras` no tiene FK a la lista ni al pedido). Decisión del usuario: simplificar
 a 4 pasos manteniendo el control, que es **de dinero** (los 3 riesgos son plata).
 
-**Fase 1 — HECHA, falta correr sql/29 + desplegar:** `components/ComprasHoy.jsx`, primera
+**Fase 1 — HECHA y desplegada:** `components/ComprasHoy.jsx`, primera
 pestaña de Compras y vista por defecto. Pantalla única para celular:
 - Saldo del día EN VIVO arriba (vuelto + Amazonas + adicionales − compras − entregas).
 - **Comprobante activo**: la foto se toma UNA vez al llegar al proveedor (`capture` abre la
@@ -51,8 +51,8 @@ pestaña de Compras y vista por defecto. Pantalla única para celular:
 - La lista es GUÍA: pidieron 10, compra 8, se guarda 8 y la diferencia queda sola.
 - Filtros y rankings se ocultan en esta vista (son de consulta, estorban al trabajar).
 
-**Fase 2 — HECHA, falta correr sql/30 + desplegar:** `components/ControlCompras.jsx`,
-pestaña **🔎 Control** visible solo para Cesar/admin (`puedeEditar`). Revisión posterior,
+**Fase 2 — HECHA y desplegada:** `components/ControlCompras.jsx`,
+pestaña **🔎 Control** visible solo para administración (`puedeEditar`). Revisión posterior,
 no bloquea. Responde 4 preguntas, todas en soles:
 1. **¿La plata cuadra?** — contra el **efectivo CONTADO** (sql/30), no contra la aritmética.
    Falta / sobra / cuadra. "Sobra" suele ser una compra sin registrar.
@@ -61,37 +61,32 @@ no bloquea. Responde 4 preguntas, todas en soles:
    marca lo que se sale del ±20%.
 4. **¿Se cubrió lo pedido?** — qué pidieron las sedes y no se compró.
 Más el detalle completo del día con sus vouchers. El conteo también se puede hacer desde
-💵 Caja de Juan al cerrar (que es cuando corresponde).
+💵 Caja de compras al cerrar (que es cuando corresponde).
 
 **Ajustes pedidos por el usuario (24-jul, ya desplegados):**
-- El **aviso de precio ahora también le sale a Juan** en su pantalla, antes de guardar
-  (`AvisoPrecio` en ComprasHoy). No bloquea: el precio lo pone él. Sirve para pescar el dedo
+- El **aviso de precio también le sale a quien compra** en su pantalla, antes de guardar
+  (`AvisoPrecio` en ComprasHoy). No bloquea: el precio lo pone quien compra. Sirve para pescar el dedo
   de más (35 en vez de 3.50) y ver cuándo se movió el mercado.
 - La **cadena pidieron → compró → llegó va en los dos lados**: en 📥 Recepción (con lo que
-  Juan compró PARA esa sede desde que se envió la lista) y en 🔎 Control con columna "Falta".
-**Fase 3 — HECHA, falta correr sql/31 + desplegar.** ⚠️ Corrección del usuario: **el pedido
-al por mayor Juan→Cesar SE QUEDA** (Juan pide, **Cesar** compra al por mayor e ingresa el
-stock; Juan NO ingresa stock). Y cuando falta algo, **primero se mira el almacén**. Entonces
+  se compró PARA esa sede desde que se envió la lista) y en 🔎 Control con columna "Falta".
+**Fase 3 — HECHA y desplegada.** ⚠️ Corrección del usuario: **el pedido de
+abastecimiento al por mayor SE QUEDA** (quien compra lo pide, **administración** lo compra e
+ingresa el stock; quien compra a diario NO ingresa stock). Y cuando falta algo, **primero se mira el almacén**. Entonces
 cada producto tiene **3 salidas**, y ahora las tres están en la misma pantalla:
 1. **Del almacén** — si hay stock, se entrega (modo por defecto cuando hay: no gastar plata
    en algo que ya está guardado). Crea la salida hacia la sede.
 2. **Comprar** — con la plata de su caja.
-3. **Pedir a Cesar** — el abastecimiento al por mayor; entra a `pedido_items`. No toca su caja.
-La fila muestra cuánto hay en almacén y cuánto ya se pidió a Cesar.
+3. **Pedir al por mayor** — el abastecimiento; entra a `pedido_items`. No toca su caja.
+La fila muestra cuánto hay en almacén y cuánto ya se pidió.
 
-**🔢 Conteo almacén** (`ConteoAlmacen.jsx`): Juan cuenta lo que hay de verdad; se guarda en
+**🔢 Conteo almacén** (`ConteoAlmacen.jsx`): se cuenta lo que hay de verdad; se guarda en
 `almacen_conteos` (sistema / contado / diferencia) y se ajusta el kardex con nota `CONTEO`.
 Muestra el último conteo por producto y el historial — las diferencias que se repiten en el
 mismo producto no son casualidad.
 
-**Sigue pendiente:** `Entregas` (tabla muerta, no la escribe nadie) y el consolidado que no
-se limpia solo.
+**`Entregas`** quedó como *histórico de solo lectura* (data del Excel viejo; la app nunca
+escribió ahí). **El consolidado ya se limpia solo** desde sql/33.
 
-⚠️ **Limitación conocida:** el consolidado **no se limpia solo** — las vistas filtran
-`compras_lista_items.comprado = false` y nada pone ese campo en true. Hoy solo desaparece
-si se marca la lista como *atendida* en Mi Lista. La pantalla nueva lo disimula (muestra
-"compró X · pidieron Y" y marca ✓), pero al día siguiente la lista vieja reaparece. Se
-arregla en la fase 3.
 
 ## ⬜ Otros pedidos del usuario (24-jul-2026)
 - ✅ **Gastos en celular** — HECHO (commit `9160cef`). Mismo patrón que compras: cámara
