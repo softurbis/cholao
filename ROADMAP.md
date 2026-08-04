@@ -11,23 +11,17 @@
 
 ## ⚠️ PENDIENTE INMEDIATO (para retomar)
 
-0. ⬜ **Correr `sql/35_recetario.sql`** — tabla `recetas` con RLS **solo para gerencia y
-   administración** (`ve_todo` mira, `puede_editar` escribe). **El frontend ya está en código,
-   sin desplegar.** Después: `bash deploy.sh` + commit + push.
+✅ Ubicación de las sedes y pago por hora: **cargados**. SQL 01→35 corridos y todo desplegado.
 
-Dos cosas de configuración que solo puede hacer el usuario, y sin las cuales esos módulos
-no arrancan:
-
-1. ⬜ **Ubicación de cada sede** — Sedes → 📍 Ubicación → "Usar mi ubicación actual", **parado
-   DENTRO del local**. **Sin esto nadie puede marcar asistencia** (la pantalla lo avisa).
-2. ⬜ **Pago por hora de cada persona** — Personas. Sin esto Horarios muestra las horas pero
-   no a cuánto equivalen.
-3. ⬜ **Redesplegar la Edge Function `quick-api`** — se le agregó la creación de accesos con
+1. ⬜ **Confirmar la Edge Function `quick-api`** — se le agregó la creación de accesos con
    **correo real** (`supabase/functions/admin-usuarios/index.ts`). El frontend ya ofrece la
    opción, pero **hasta que no se redespliegue, elegir "Correo y contraseña" va a fallar**:
    la versión vieja ignora el campo `correo` y arma `usuario@cholao.local`. Se pega el archivo
-   en el dashboard (Edge Functions → quick-api → Deploy) o
-   `npx supabase functions deploy admin-usuarios --project-ref jselojihwryffbukcvdz`.
+   en el dashboard (Edge Functions → **quick-api** → Code → Deploy updates; ojo que en la lista
+   aparece con el nombre `admin-usuarios`). **Para saber si está al día: buscar `CORREO_OK` en
+   su código**, o simplemente crear un login con correo y ver si funciona.
+2. ⬜ **Probar en el local**: asistencia desde el celular (¿agarra el GPS adentro?), horarios
+   con una sede, una lista de cocina y atenderla desde compras.
 
 
 
@@ -130,7 +124,7 @@ Verificar en producción cuando entre Juan/cocina:
 - **Juan → 📥 Recepción**: elige una sede y valida su entrega igual que la cocina.
 - **Juan → 📦 Catálogo**: define la unidad de compra + factor (1 saco = 25 kg).
 
-**SQL corridos:** 01→34. **Pendiente:** sql/35.
+**SQL corridos:** 01→35. **Pendiente:** ninguno.
 
 ### 📅 Horarios (nuevo, 25-jul-2026)
 Programación por **fecha** (una fila = persona + día + sede + horas), no plantilla semanal
