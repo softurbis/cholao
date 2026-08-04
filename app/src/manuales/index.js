@@ -66,6 +66,28 @@ export const MANUALES = {
   },
 
   // -------------------------------------------------------------------
+  recetario: {
+    titulo: 'Recetario',
+    paraQuien: 'Solo gerencia y administración. La cocina NO lo ve.',
+    resumen: 'Cómo se prepara cada producto: ingredientes, procedimiento y rendimiento.',
+    pasos: [
+      { t: 'Buscar una receta', d: 'El buscador mira el nombre y también los ingredientes, así que puedes preguntar al revés: escribe "leche condensada" y salen todas las recetas que la usan.' },
+      { t: 'Ver una receta', d: 'Toca la fila. Se abren los ingredientes y la preparación, uno al lado del otro.' },
+      { t: 'Cargar una receta nueva', d: '"+ Nueva receta". Los ingredientes y la preparación son campos de texto libre: puedes pegar tal cual lo que tengas escrito, respetando los saltos de línea.' },
+      { t: 'La hoja de Google', d: 'El botón "Abrir la hoja de Google" lleva a la hoja donde estaban las recetas antes. Sirve para consultarla mientras las vas pasando aquí.' },
+    ],
+    ojo: [
+      'Las recetas son el know-how del negocio: por eso no las ve el personal de tienda, ni siquiera cocina. Está protegido en la base, no solo escondido del menú.',
+      'Gerencia mira; administración y el superusuario editan.',
+      'Cada receta muestra cuándo se actualizó por última vez. Una receta que nadie revisa hace un año es una receta en la que ya nadie confía.',
+      'La hoja de Google se abre con los permisos de Google: el sistema no copia nada de ella. Si alguien no tiene acceso allá, no la va a ver.',
+    ],
+    novedades: [
+      { f: '2026-07-29', d: 'Módulo nuevo.' },
+    ],
+  },
+
+  // -------------------------------------------------------------------
   horarios: {
     titulo: 'Horarios',
     paraQuien: 'Todos ven el suyo. Administración y gerencia programan.',

@@ -16,6 +16,7 @@ import Sedes from './pages/Sedes'
 import Personas from './pages/Personas'
 import Asistencia from './pages/Asistencia'
 import Horarios from './pages/Horarios'
+import Recetario from './pages/Recetario'
 
 function Privado({ module, children }) {
   return (
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/personas" element={<Privado module="personas"><Personas /></Privado>} />
         <Route path="/asistencia" element={<Privado module="asistencia"><Asistencia /></Privado>} />
         <Route path="/horarios" element={<Privado module="horarios"><Horarios /></Privado>} />
+        <Route path="/recetario" element={<Privado module="recetario"><Recetario /></Privado>} />
       </Routes>
     </AuthProvider>
   )

@@ -34,6 +34,7 @@ export const MODULOS = [
   { key: 'personas', to: '/personas', label: 'Personas', icon: '👥' },
   { key: 'asistencia', to: '/asistencia', label: 'Asistencia', icon: '🕒' },
   { key: 'horarios', to: '/horarios', label: 'Horarios', icon: '📅' },
+  { key: 'recetario', to: '/recetario', label: 'Recetario', icon: '📖' },
 ]
 
 // Cómo se agrupa el menú de la izquierda. La idea es que cada quien encuentre
@@ -43,7 +44,7 @@ export const MODULOS = [
 // pocos módulos (la cajera ve uno), el menú va plano: agrupar tres cosas estorba.
 export const GRUPOS = [
   { key: 'dia', label: 'Día a día', icon: '🗓️', modulos: ['registro', 'lista', 'compras', 'gastos', 'asistencia', 'horarios'] },
-  { key: 'control', label: 'Revisión', icon: '📈', modulos: ['dashboard', 'cuadre', 'ventas', 'productos'] },
+  { key: 'control', label: 'Revisión', icon: '📈', modulos: ['dashboard', 'cuadre', 'ventas', 'productos', 'recetario'] },
   { key: 'ajustes', label: 'Ajustes', icon: '🔧', modulos: ['sedes', 'personas', 'config'] },
 ]
 
@@ -52,11 +53,15 @@ export const GRUPOS = [
 export const ROLE_ACCESS = {
   // 'asistencia' y 'horarios' las ve TODO EL MUNDO: cada quien marca la suya y ve
   // su horario. Gerencia y administración además ven quién marcó y programan.
-  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos', 'config', 'sedes', 'personas'],
-  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos'],
+  // 'recetario' NO va para el personal de tienda, ni siquiera cocina: son las
+  // recetas del negocio y el usuario lo pidió así. Lo protege la policy
+  // `recetas_ver` de sql/35 (ve_todo), no solo esconderlo del menú.
+  superadmin: ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos', 'recetario', 'config', 'sedes', 'personas'],
+  admin:      ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos', 'recetario'],
   // Gerencia entra a 'lista' SOLO para mirar lo que pidieron las sedes: Lista.jsx
   // da el editor únicamente al rol 'cocina', al resto la vista de lectura.
-  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos'],
+  // En recetario también solo mira: escribir es de administración (puedeEditar).
+  gerente:    ['dashboard', 'registro', 'cuadre', 'gastos', 'compras', 'lista', 'asistencia', 'horarios', 'ventas', 'productos', 'recetario'],
   compras:    ['compras', 'asistencia', 'horarios'],
   cajera:     ['registro', 'asistencia', 'horarios'],
   cocina:     ['lista', 'asistencia', 'horarios'],
